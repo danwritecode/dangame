@@ -1,10 +1,11 @@
-use macroquad::prelude::*;
+use macroquad::prelude::{animation::{AnimatedSprite, Animation}, *};
 
-use assets::Assets;
+use assets::{AnimationType, PlayerAnimation, PlayerSprite};
 
 mod assets;
 
 const RUN_SPEED: f32 = 300.0;
+const WALK_SPEED: f32 = 150.0;
 const JUMP_SPEED: f32 = 400.0;
 const GRAVITY: f32 = 800.0;
 const FLOOR: f32 = 500.0;
@@ -19,37 +20,26 @@ struct Entity {
     is_solid: bool
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum AnimationType {
-    Idle,
-    ForwardRun,
-    ReverseRun,
-    Jump,
-}
-
-#[derive(Clone, Debug)]
-struct PlayerAnimation {
-    anim_type: AnimationType,
-    sprite_frames: usize,
-    anim_frames: usize,
-    fps: usize,
-    texture: Texture2D
-}
-
 struct Player<'a> {
     x: f32,
     y: f32,
     x_v: f32,
     y_v: f32,
+    facing: Facing,
     width: f32,
     height: f32,
     state: &'a PlayerAnimation,
-    assets: &'a Assets,
-    color: Color,
+    assets: &'a PlayerSprite,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Facing {
+    Left,
+    Right,
 }
 
 impl<'a> Player<'a> {
-    async fn new(x: f32, y: f32, width: f32, height: f32, assets: &'a Assets) -> Self {
+    async fn new(x: f32, y: f32, width: f32, height: f32, assets: &'a PlayerSprite) -> Self {
         Self {
             x,
             y,
@@ -57,52 +47,73 @@ impl<'a> Player<'a> {
             y_v: 0.0,
             width,
             height,
+            facing: Facing::Right,
             state: &assets.idle_anim,
-            assets,
-            color: GREEN
+            assets
         }
     }
 
     fn update(&mut self, dt: f32, entities: &Vec<Entity>) {
-        let wants_left = is_key_down(KeyCode::A);
-        let wants_right = is_key_down(KeyCode::D);
+        let wants_walk_left = is_key_down(KeyCode::A);
+        let wants_walk_right = is_key_down(KeyCode::D);
+
+        let wants_run_left = is_key_down(KeyCode::A) && is_key_down(KeyCode::LeftShift);
+        let wants_run_right = is_key_down(KeyCode::D) && is_key_down(KeyCode::LeftShift);
+
         let wants_jump = is_key_down(KeyCode::Space);
         let wants_nothing = !is_any_key_down();
 
         let mut next_animation_state = &self.state.anim_type;
+        let is_airborn = self.y < FLOOR - self.height;
+        let is_grounded = self.y >= FLOOR - self.height;
 
-        // if we have velocity, we need to apply gravity
-        if self.y < FLOOR - self.height {
+        // if y is above floor, we are jumping
+        if is_airborn {
             self.y_v -= GRAVITY * dt;
             self.y -=  self.y_v * dt;
         }
 
-        if self.y >= FLOOR - self.height { 
+        if is_grounded { 
             self.y = FLOOR - self.height; 
             self.y_v = 0.0; 
             next_animation_state = &AnimationType::Idle;
         }
 
-        if wants_left {
-            self.x_v = RUN_SPEED * -1.0;
-            next_animation_state = &AnimationType::ReverseRun;
-
+        if wants_walk_left {
+            self.x_v = WALK_SPEED * -1.0;
+            self.facing = Facing::Left;
+            if is_grounded { next_animation_state = &AnimationType::ReverseWalk; }
+            
         }
 
-        if wants_right {
+        if wants_walk_right {
+            self.x_v = WALK_SPEED;
+            self.facing = Facing::Right;
+            if is_grounded { next_animation_state = &AnimationType::ForwardWalk; }
+        }
+
+        if wants_run_left {
+            self.x_v = RUN_SPEED * -1.0;
+            self.facing = Facing::Left;
+            if is_grounded { next_animation_state = &AnimationType::ReverseRun; }
+            
+        }
+
+        if wants_run_right {
             self.x_v = RUN_SPEED;
-            next_animation_state = &AnimationType::ForwardRun;
+            self.facing = Facing::Right;
+            if is_grounded { next_animation_state = &AnimationType::ForwardRun; }
         }
 
         if wants_jump {
-            if self.y >= FLOOR - self.height {
+            if is_grounded {
                 self.y_v = JUMP_SPEED;
                 next_animation_state = &AnimationType::Jump;
             }
         }
 
         if wants_nothing {
-            if self.y >= FLOOR {
+            if is_grounded {
                 next_animation_state = &AnimationType::Idle;
             }
         }
@@ -125,24 +136,15 @@ impl<'a> Player<'a> {
                 AnimationType::ReverseRun => {
                     self.state = &self.assets.rev_run_anim;
                 },
+                AnimationType::ForwardWalk => {
+                    self.state = &self.assets.fwd_walk_anim;
+                },
+                AnimationType::ReverseWalk => {
+                    self.state = &self.assets.rev_walk_anim;
+                }
                 AnimationType::Jump => {
                     self.state = &self.assets.jump_anim;
-                }
-            }
-        }
-
-        match self.state.anim_type {
-            AnimationType::Idle => {
-                self.color = GREEN;
-            },
-            AnimationType::ForwardRun => {
-                self.color = ORANGE;
-            },
-            AnimationType::ReverseRun => {
-                self.color = ORANGE;
-            },
-            AnimationType::Jump => {
-                self.color = RED;
+                },
             }
         }
     }
@@ -150,15 +152,62 @@ impl<'a> Player<'a> {
 
 #[macroquad::main("Dangame")]
 async fn main() {
-    let assets = Assets::load().await;
+    let mut player_sprite = PlayerSprite::load().await;
 
-    let mut p1 = Player::new(100.0, FLOOR - 20.0, 20.0, 20.0, &assets).await;
+    let mut p1 = Player::new(100.0, FLOOR - 20.0, 20.0, 80.0, &mut player_sprite).await;
     let mut entities:Vec<Entity> = Vec::new();
+
+    let mut sprites = AnimatedSprite::new(128, 128,
+        &[
+            Animation {
+                name: "idle".to_string(),
+                row: 0,
+                frames: 6,
+                fps: 20
+            },
+            Animation {
+                name: "run".to_string(),
+                row: 0,
+                frames: 8,
+                fps: 20
+            },
+            Animation {
+                name: "jump".to_string(),
+                row: 0,
+                frames: 10,
+                fps: 4
+            },
+            Animation {
+                name: "walk".to_string(),
+                row: 0,
+                frames: 8,
+                fps: 20
+            },
+        ],
+        true
+    );
+
 
     loop {
         let dt = get_frame_time();
 
         p1.update(dt, &entities);
+
+        sprites.set_animation(p1.state.sprite_animation);
+        draw_texture_ex(
+            &p1.state.texture,
+            p1.x - 50.0,
+            p1.y - 50.0,
+            WHITE,
+            DrawTextureParams {
+                source: Some(sprites.frame().source_rect),
+                dest_size: Some(sprites.frame().dest_size),
+                flip_x: p1.facing == Facing::Left,
+                ..Default::default()
+            }
+        );
+
+        draw_line(0.0, FLOOR, screen_width(), FLOOR, 2.0, RED);
 
         // draw some debugging text with player velocity
         draw_text(&format!("vx: {} | vy: {}", p1.x_v, p1.y_v), 20.0, 20.0, 20.0, DARKGRAY);
@@ -166,11 +215,7 @@ async fn main() {
         draw_text(&format!("animation: {:?}", p1.state.anim_type), 20.0, 50.0, 20.0, DARKGRAY);
         draw_text(&format!("{:?}", FLOOR - p1.height), 20.0, 70.0, 20.0, DARKGRAY);
 
-        // we are building a platformer, so there are no Y axis movement (unless jumping)
-        draw_rectangle(p1.x, p1.y, p1.width, p1.height, p1.color);
-        draw_line(0.0, FLOOR, screen_width(), FLOOR, 2.0, RED);
-
-
+        sprites.update();
         next_frame().await
     }
 }
