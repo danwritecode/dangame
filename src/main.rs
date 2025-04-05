@@ -8,7 +8,7 @@ const RUN_SPEED: f32 = 300.0;
 const WALK_SPEED: f32 = 150.0;
 const JUMP_SPEED: f32 = 400.0;
 const GRAVITY: f32 = 800.0;
-const FLOOR: f32 = 500.0;
+const FLOOR: f32 = 900.0;
 
 
 struct Entity {
@@ -152,9 +152,11 @@ impl<'a> Player<'a> {
 
 #[macroquad::main("Dangame")]
 async fn main() {
-    let mut player_sprite = PlayerSprite::load().await;
+    let background = load_texture("spritesheets/background.png").await.unwrap();
 
+    let mut player_sprite = PlayerSprite::load().await;
     let mut p1 = Player::new(100.0, FLOOR - 20.0, 20.0, 80.0, &mut player_sprite).await;
+
     let mut entities:Vec<Entity> = Vec::new();
 
     let mut sprites = AnimatedSprite::new(128, 128,
@@ -190,8 +192,9 @@ async fn main() {
 
     loop {
         let dt = get_frame_time();
-
         p1.update(dt, &entities);
+
+        draw_texture(&background, 0., 0., WHITE);
 
         sprites.set_animation(p1.state.sprite_animation);
         draw_texture_ex(
@@ -207,7 +210,7 @@ async fn main() {
             }
         );
 
-        draw_line(0.0, FLOOR, screen_width(), FLOOR, 2.0, RED);
+        draw_rectangle(0.0, FLOOR, screen_width(), 300.0, BLACK);
 
         // draw some debugging text with player velocity
         draw_text(&format!("vx: {} | vy: {}", p1.x_v, p1.y_v), 20.0, 20.0, 20.0, DARKGRAY);
