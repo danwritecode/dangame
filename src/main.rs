@@ -1,6 +1,14 @@
-use std::collections::VecDeque;
+use macroquad::prelude::*;
 
-use macroquad::prelude::{animation::{AnimatedSprite, Animation}, *};
+use assets::Assets;
+
+mod assets;
+
+const RUN_SPEED: f32 = 300.0;
+const JUMP_SPEED: f32 = 400.0;
+const GRAVITY: f32 = 800.0;
+const FLOOR: f32 = 500.0;
+
 
 struct Entity {
     textures: Texture2D,
@@ -25,53 +33,23 @@ struct PlayerAnimation {
     sprite_frames: usize,
     anim_frames: usize,
     fps: usize,
-    texture: Texture2D,
-    x_v: f32,
-    y_v: f32,
-    x_v_decay: f32,
-    y_v_decay: f32,
+    texture: Texture2D
 }
 
-impl PlayerAnimation {
-    fn execute(&mut self, dt: f32, player: &mut Player) {
-        self.x_v -= self.x_v_decay * dt;
-        self.y_v -= self.y_v_decay * dt;
-    }
-}
-
-struct Player {
+struct Player<'a> {
     x: f32,
     y: f32,
     x_v: f32,
     y_v: f32,
     width: f32,
     height: f32,
-    cur_animation: PlayerAnimation,
-    idle_anim: PlayerAnimation,
-    fwd_run_anim: PlayerAnimation,
-    rev_run_anim: PlayerAnimation,
-    jump_anim: PlayerAnimation,
-    color: Color
+    state: &'a PlayerAnimation,
+    assets: &'a Assets,
+    color: Color,
 }
 
-impl Player {
-    async fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
-        let idle_texture = load_texture("spritesheets/Fighter/Idle.png").await.unwrap();
-        let run_texture = load_texture("spritesheets/Fighter/Run.png").await.unwrap();
-        let jump_texture = load_texture("spritesheets/Fighter/Jump.png").await.unwrap();
-
-        let idle_anim = PlayerAnimation { anim_type: AnimationType::Idle, sprite_frames: 6, anim_frames: 6, fps: 20, 
-            texture: idle_texture, x_v: 0.0, y_v: 0.0, x_v_decay: 0.0, y_v_decay: 0.0 };
-        
-        let fwd_run_anim = PlayerAnimation { anim_type: AnimationType::ForwardRun, sprite_frames: 8, anim_frames: 8, fps: 20, 
-            texture: run_texture.clone(), x_v: 200.0, y_v: 0.0, x_v_decay: 200.0, y_v_decay: 0.0 };
-
-        let rev_run_anim = PlayerAnimation { anim_type: AnimationType::ReverseRun, sprite_frames: 8, anim_frames: 8, fps: 20, 
-            texture: run_texture, x_v: 200.0, y_v: 0.0, x_v_decay: 200.0, y_v_decay: 0.0 };
-
-        let jump_anim = PlayerAnimation { anim_type: AnimationType::Jump, sprite_frames: 10, anim_frames: 10, fps: 20, 
-            texture: jump_texture, x_v: 0.0, y_v: 400.0, x_v_decay: 200.0, y_v_decay: 200.0 };
-
+impl<'a> Player<'a> {
+    async fn new(x: f32, y: f32, width: f32, height: f32, assets: &'a Assets) -> Self {
         Self {
             x,
             y,
@@ -79,11 +57,8 @@ impl Player {
             y_v: 0.0,
             width,
             height,
-            cur_animation: idle_anim.clone(),
-            idle_anim,
-            fwd_run_anim,
-            rev_run_anim,
-            jump_anim,
+            state: &assets.idle_anim,
+            assets,
             color: GREEN
         }
     }
@@ -94,135 +69,107 @@ impl Player {
         let wants_jump = is_key_down(KeyCode::Space);
         let wants_nothing = !is_any_key_down();
 
-        let mut next_animation = self.cur_animation.clone();
+        let mut next_animation_state = &self.state.anim_type;
+
+        // if we have velocity, we need to apply gravity
+        if self.y < FLOOR - self.height {
+            self.y_v -= GRAVITY * dt;
+            self.y -=  self.y_v * dt;
+        }
+
+        if self.y >= FLOOR - self.height { 
+            self.y = FLOOR - self.height; 
+            self.y_v = 0.0; 
+            next_animation_state = &AnimationType::Idle;
+        }
 
         if wants_left {
-            next_animation = self.rev_run_anim.clone();
+            self.x_v = RUN_SPEED * -1.0;
+            next_animation_state = &AnimationType::ReverseRun;
+
         }
+
         if wants_right {
-            next_animation = self.fwd_run_anim.clone();
+            self.x_v = RUN_SPEED;
+            next_animation_state = &AnimationType::ForwardRun;
         }
+
         if wants_jump {
-            // don't want to double jump
-            if self.cur_animation.anim_type != AnimationType::Jump { 
-                next_animation = self.jump_anim.clone();
+            if self.y >= FLOOR - self.height {
+                self.y_v = JUMP_SPEED;
+                next_animation_state = &AnimationType::Jump;
             }
         }
+
         if wants_nothing {
-            next_animation = self.idle_anim.clone();
+            if self.y >= FLOOR {
+                next_animation_state = &AnimationType::Idle;
+            }
         }
 
+        // apply velocity to x/y position after above calculations
+        self.x += self.x_v * dt;
+        self.y -= self.y_v * dt;
 
+        // x velocity is only used for current frame
+        self.x_v = 0.0;
 
-        if is_key_down(KeyCode::A) {
-            match self.cur_animation.anim_type {
-                AnimationType::ReverseRun => {
-                    // we want to reset the velocity
-                    self.x_v = self.cur_animation.x_v;
-                    self.x_v = self.x_v * -1.0;
-                },
-                AnimationType::ForwardRun => {
-                    // we want to reset the velocity
-                    self.cur_animation = self.rev_run_anim.clone();
-                    self.x_v = self.cur_animation.x_v;
-                },
+        if next_animation_state != &self.state.anim_type { 
+            match next_animation_state {
                 AnimationType::Idle => {
-                    self.cur_animation = self.rev_run_anim.clone();
+                    self.state = &self.assets.idle_anim;
                 },
-                _ => ()
-            }
-        }
-
-        if is_key_down(KeyCode::D) {
-            match self.cur_animation.anim_type {
                 AnimationType::ForwardRun => {
-                    // we want to reset the velocity
-                    self.x_v = self.cur_animation.x_v;
+                    self.state = &self.assets.fwd_run_anim;
                 },
                 AnimationType::ReverseRun => {
-                    // we want to reset the velocity
-                    self.cur_animation = self.fwd_run_anim.clone();
-                    self.x_v = self.cur_animation.x_v;
-                    self.x_v = self.x_v * -1.0;
+                    self.state = &self.assets.rev_run_anim;
                 },
-                AnimationType::Idle => {
-                    self.cur_animation = self.fwd_run_anim.clone();
-                },
-                _ => ()
+                AnimationType::Jump => {
+                    self.state = &self.assets.jump_anim;
+                }
             }
         }
 
-        if is_key_down(KeyCode::Space) {
-            self.cur_animation = self.jump_anim.clone();
-            self.x_v = self.cur_animation.x_v;
-            self.y_v = self.cur_animation.y_v;
-        }
-
-        if !is_any_key_down() {
-            match self.cur_animation.anim_type {
-                AnimationType::ForwardRun => {
-                    self.x_v -= self.cur_animation.x_v_decay * dt;
-
-                    if self.x_v <= 0.0 {
-                        self.cur_animation = self.idle_anim.clone();
-                    }
-                },
-                AnimationType::ReverseRun => {
-                    self.x_v += self.cur_animation.x_v_decay * dt;
-
-                    if self.x_v >= 0.0 {
-                        self.cur_animation = self.idle_anim.clone();
-                    }
-                },
-                AnimationType::Jump => { 
-                    self.y_v -= self.cur_animation.y_v_decay * dt;
-
-                    if self.x_v >= 0.0 {
-                        self.x_v -= self.cur_animation.x_v_decay * dt;
-                    }
-
-                    if self.y_v <= 0.0 {
-                        self.cur_animation = self.idle_anim.clone();
-                    }
-                },
-                _ => ()
-            }
-        }
-
-        match self.cur_animation.anim_type {
+        match self.state.anim_type {
             AnimationType::Idle => {
                 self.color = GREEN;
             },
-            AnimationType::ForwardRun | AnimationType::ReverseRun => {
+            AnimationType::ForwardRun => {
                 self.color = ORANGE;
-                self.x += self.x_v * dt;
+            },
+            AnimationType::ReverseRun => {
+                self.color = ORANGE;
             },
             AnimationType::Jump => {
-                self.color = ORANGE;
-                self.x += self.x_v * dt;
-                self.y -= self.y_v * dt;
+                self.color = RED;
             }
         }
-
-        // draw some debugging text with player velocity
-        draw_text(&format!("velocity: x: {} | y: {}", self.x_v, self.y_v), 20.0, 10.0, 20.0, DARKGRAY);
-        draw_text(&format!("animation: {:?}", self.cur_animation.anim_type), 20.0, 30.0, 20.0, DARKGRAY);
-
-        // we are building a platformer, so there are no Y axis movement (unless jumping)
-        draw_rectangle(self.x, self.y, self.width, self.height, self.color);
     }
 }
 
 #[macroquad::main("Dangame")]
 async fn main() {
+    let assets = Assets::load().await;
 
-    let mut p1 = Player::new(100.0, 500.0, 20.0, 20.0).await;
+    let mut p1 = Player::new(100.0, FLOOR - 20.0, 20.0, 20.0, &assets).await;
     let mut entities:Vec<Entity> = Vec::new();
 
     loop {
         let dt = get_frame_time();
 
         p1.update(dt, &entities);
+
+        // draw some debugging text with player velocity
+        draw_text(&format!("vx: {} | vy: {}", p1.x_v, p1.y_v), 20.0, 20.0, 20.0, DARKGRAY);
+        draw_text(&format!("x: {} | y: {}", p1.x, p1.y), 20.0, 35.0, 20.0, DARKGRAY);
+        draw_text(&format!("animation: {:?}", p1.state.anim_type), 20.0, 50.0, 20.0, DARKGRAY);
+        draw_text(&format!("{:?}", FLOOR - p1.height), 20.0, 70.0, 20.0, DARKGRAY);
+
+        // we are building a platformer, so there are no Y axis movement (unless jumping)
+        draw_rectangle(p1.x, p1.y, p1.width, p1.height, p1.color);
+        draw_line(0.0, FLOOR, screen_width(), FLOOR, 2.0, RED);
+
 
         next_frame().await
     }
