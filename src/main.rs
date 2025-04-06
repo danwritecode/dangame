@@ -248,7 +248,12 @@ async fn main() {
         draw_text(&format!("sequence frame:{:?}", p1.state.borrow().sequence_frame_index), 20.0, 115.0, 20.0, DARKGRAY);
         draw_text(&format!("sequence: {:?}", p1.state.borrow().sequence_index), 20.0, 130.0, 20.0, DARKGRAY);
 
-        p1.state.borrow_mut().update();
+        let (dx, dy) = p1.state.borrow_mut().update();
+
+        // delta can be positive or negative so we always need to add it to the position
+        p1.x += dx;
+        p1.y += dy;
+
         next_frame().await
     }
 }

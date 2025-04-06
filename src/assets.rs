@@ -26,9 +26,8 @@ pub struct PlayerAnimation {
     pub sprite_frame: usize,
 
     // Sequence is a grouping of frames and their FPS
-    // Example: (4, 20), (1, 10), (5, 10)
     // This means that the sequence will play 4 frames at 20 FPS, then 1 frame at 10 FPS, then 5 frames at 10 FPS
-    pub sequence: Vec<(usize, f32)>,
+    pub animation_sequence: Vec<AnimationSequence>,
 
     // Sequence Index is the current sequence of animations which has 
     // a number of frames and an FPS to play them at.
@@ -43,30 +42,59 @@ pub struct PlayerAnimation {
     pub always_plays: bool,
 }
 
+#[derive(Clone, Debug)]
+pub struct AnimationSequence {
+    frames: usize, 
+    fps: f32,
+    x_movement: f32,
+    y_movement: f32,
+}
+
+impl AnimationSequence {
+    pub fn new(frames: usize, fps: f32, x_movement: f32, y_movement: f32) -> Self {
+        Self {
+            frames,
+            fps,
+            x_movement,
+            y_movement,
+        }
+    }
+}
+
+type Delta = (f32, f32);
+
 impl PlayerAnimation {
-    pub fn update(&mut self) {
-        let (sequence_frames, fps) = &self.sequence[self.sequence_index];
+    pub fn update(&mut self) -> Delta {
+        let sequence = &self.animation_sequence[self.sequence_index];
+        let (mut dx, mut dy) = (0.0, 0.0);
 
         if self.actively_playing || self.always_plays {
             self.time += get_frame_time();
 
-            if self.time > 1. / fps {
+            if self.time > 1. / sequence.fps {
                 // if we still have sequence frames left to play, then we play them
-                if self.sequence_frame_index < sequence_frames - 1 {
+                if self.sequence_frame_index < sequence.frames - 1 {
                     self.sprite_frame += 1;
                     self.sequence_frame_index += 1;
-                }
 
-                if self.sequence_frame_index == sequence_frames - 1 {
+                    // need to calculate the delta for the next frame
+                    dx = sequence.x_movement / sequence.frames as f32;
+                    dy = sequence.y_movement / sequence.frames as f32;
+                } else {
                     // if we have played all frames in the sequence, then we move to the next sequence
-                    if self.sequence_index < self.sequence.len() - 1 {
+                    if self.sequence_index < self.animation_sequence.len() - 1 {
+
+                        // we need to calculate this BEFORE we move to the next sequence
+                        dx = sequence.x_movement / sequence.frames as f32;
+                        dy = sequence.y_movement / sequence.frames as f32;
+
                         self.sprite_frame += 1;
                         self.sequence_index += 1;
                         self.sequence_frame_index = 0;
                     }
 
                     // if we're done with the animation then we reset
-                    if self.sequence_index == self.sequence.len() - 1 {
+                    if self.sequence_index == self.animation_sequence.len() - 1 {
                         self.reset();
                     }
 
@@ -81,8 +109,7 @@ impl PlayerAnimation {
             }
         }
 
-        // macroquad uses this and i have no idea why
-        // self.frame %= sequence_frames;
+        (dx, dy)
     }
 
     pub fn reset(&mut self) {
@@ -120,7 +147,7 @@ impl AnimationBank {
             anim_type: AnimationType::Idle,
             texture: idle_texture,
             time: 0.0,
-            sequence: vec![(6, 20.0)],
+            animation_sequence: vec![AnimationSequence::new(6, 20.0, 0.0, 0.0)],
             sprite_frame: 0,
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -133,7 +160,7 @@ impl AnimationBank {
             texture: run_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
-            sequence: vec![(8, 20.0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -145,7 +172,7 @@ impl AnimationBank {
             texture: run_texture,
             time: 0.0,
             sprite_frame: 0,
-            sequence: vec![(8, 20.0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -157,7 +184,12 @@ impl AnimationBank {
             texture: jump_texture,
             time: 0.0,
             sprite_frame: 0,
-            sequence: vec![(2, 3.0), (3, 20.0), (2, 3.0), (3, 20.0)],
+            animation_sequence: vec![
+                AnimationSequence::new(2, 3.0, 0.0, 0.0), 
+                AnimationSequence::new(3, 20.0, 0.0, 0.0), 
+                AnimationSequence::new(2, 3.0, 0.0, 0.0), 
+                AnimationSequence::new(3, 20.0, 0.0, 0.0)
+            ],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -169,7 +201,7 @@ impl AnimationBank {
             texture: walk_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
-            sequence: vec![(8, 20.0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -181,7 +213,7 @@ impl AnimationBank {
             texture: walk_texture,
             time: 0.0,
             sprite_frame: 0,
-            sequence: vec![(8, 20.0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -193,7 +225,11 @@ impl AnimationBank {
             texture: attack_1_texture,
             time: 0.0,
             sprite_frame: 0,
-            sequence: vec![(2, 3.0), (1, 3.0), (1, 3.0)],
+            animation_sequence: vec![
+                AnimationSequence::new(2, 3.0, 0.0, 0.0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0), 
+            ],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -205,7 +241,11 @@ impl AnimationBank {
             texture: attack_2_texture,
             time: 0.0,
             sprite_frame: 0,
-            sequence: vec![(1, 3.0), (1, 3.0), (1, 3.0)],
+            animation_sequence: vec![
+                AnimationSequence::new(1, 3.0, 0.0, 0.0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0), 
+            ],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -217,7 +257,11 @@ impl AnimationBank {
             texture: attack_3_texture,
             time: 0.0,
             sprite_frame: 0,
-            sequence: vec![(2, 3.0), (1, 3.0), (1, 3.0)],
+            animation_sequence: vec![
+                AnimationSequence::new(2, 6.0, 50.0, 0.0), 
+                AnimationSequence::new(1, 6.0, 0.0, 0.0), 
+                AnimationSequence::new(1, 6.0, 100.0, 0.0), 
+            ],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
