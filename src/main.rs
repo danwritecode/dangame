@@ -74,6 +74,8 @@ impl Player {
         let wants_nothing = !is_any_key_down();
 
         let wants_attack_1 = is_key_down(KeyCode::E);
+        let wants_attack_2 = is_key_down(KeyCode::Q);
+        let wants_attack_3 = is_key_down(KeyCode::R);
 
         let mut next_animation_state = self.state.borrow().anim_type.clone();
         let is_airborn = self.y < FLOOR - self.height;
@@ -137,6 +139,18 @@ impl Player {
             }
         }
 
+        if wants_attack_2 {
+            if is_grounded {
+                next_animation_state = AnimationType::Attack2;
+            }
+        }
+
+        if wants_attack_3 {
+            if is_grounded {
+                next_animation_state = AnimationType::Attack3;
+            }
+        }
+
         // apply velocity to x/y position after above calculations
         self.x += self.x_v * dt;
         self.y -= self.y_v * dt;
@@ -173,6 +187,14 @@ impl Player {
                     self.state = Rc::clone(&self.animation_bank.attack_1_anim);
                     self.state.borrow_mut().actively_playing = true;
                 },
+                AnimationType::Attack2 => {
+                    self.state = Rc::clone(&self.animation_bank.attack_2_anim);
+                    self.state.borrow_mut().actively_playing = true;
+                },
+                AnimationType::Attack3 => {
+                    self.state = Rc::clone(&self.animation_bank.attack_3_anim);
+                    self.state.borrow_mut().actively_playing = true;
+                },
             }
         }
     }
@@ -180,7 +202,7 @@ impl Player {
 
 #[macroquad::main("Dangame")]
 async fn main() {
-    let background = load_texture("spritesheets/background.png").await.unwrap();
+    let background = load_texture("spritesheets/background_tokyo.png").await.unwrap();
     let mut p1 = Player::new(100.0, FLOOR - 20.0, 20.0, 80.0).await;
     let mut entities:Vec<Entity> = Vec::new();
 

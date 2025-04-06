@@ -11,12 +11,13 @@ pub enum AnimationType {
     ForwardWalk,
     ReverseWalk,
     Attack1,
+    Attack2,
+    Attack3,
 }
 
 #[derive(Clone, Debug)]
 pub struct PlayerAnimation {
     pub anim_type: AnimationType,
-    pub sprite_animation: usize,
     pub texture: Texture2D,
     pub time: f32,
 
@@ -43,12 +44,6 @@ pub struct PlayerAnimation {
 }
 
 impl PlayerAnimation {
-    pub fn as_mut(&mut self) -> &mut PlayerAnimation {
-        self
-    }
-}
-
-impl PlayerAnimation {
     pub fn update(&mut self) {
         let (sequence_frames, fps) = &self.sequence[self.sequence_index];
 
@@ -62,14 +57,15 @@ impl PlayerAnimation {
                     self.sequence_frame_index += 1;
                 }
 
-                // if we have played all frames in the sequence, then we move to the next sequence
                 if self.sequence_frame_index == sequence_frames - 1 {
+                    // if we have played all frames in the sequence, then we move to the next sequence
                     if self.sequence_index < self.sequence.len() - 1 {
                         self.sprite_frame += 1;
                         self.sequence_index += 1;
                         self.sequence_frame_index = 0;
                     }
 
+                    // if we're done with the animation then we reset
                     if self.sequence_index == self.sequence.len() - 1 {
                         self.reset();
                     }
@@ -85,6 +81,7 @@ impl PlayerAnimation {
             }
         }
 
+        // macroquad uses this and i have no idea why
         // self.frame %= sequence_frames;
     }
 
@@ -105,6 +102,8 @@ pub struct AnimationBank {
     pub fwd_walk_anim: Rc<RefCell<PlayerAnimation>>,
     pub rev_walk_anim: Rc<RefCell<PlayerAnimation>>,
     pub attack_1_anim: Rc<RefCell<PlayerAnimation>>,
+    pub attack_2_anim: Rc<RefCell<PlayerAnimation>>,
+    pub attack_3_anim: Rc<RefCell<PlayerAnimation>>,
 }
 
 impl AnimationBank {
@@ -114,10 +113,11 @@ impl AnimationBank {
         let jump_texture = load_texture("spritesheets/Fighter/Jump.png").await.unwrap();
         let walk_texture = load_texture("spritesheets/Fighter/Walk.png").await.unwrap();
         let attack_1_texture = load_texture("spritesheets/Fighter/Attack_1.png").await.unwrap();
+        let attack_2_texture = load_texture("spritesheets/Fighter/Attack_2.png").await.unwrap();
+        let attack_3_texture = load_texture("spritesheets/Fighter/Attack_3.png").await.unwrap();
 
         let idle_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::Idle,
-            sprite_animation: 0,
             texture: idle_texture,
             time: 0.0,
             sequence: vec![(6, 20.0)],
@@ -130,7 +130,6 @@ impl AnimationBank {
 
         let fwd_run_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::ForwardRun,
-            sprite_animation: 1,
             texture: run_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
@@ -143,7 +142,6 @@ impl AnimationBank {
 
         let rev_run_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::ReverseRun,
-            sprite_animation: 1,
             texture: run_texture,
             time: 0.0,
             sprite_frame: 0,
@@ -156,7 +154,6 @@ impl AnimationBank {
 
         let jump_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::Jump,
-            sprite_animation: 2,
             texture: jump_texture,
             time: 0.0,
             sprite_frame: 0,
@@ -169,7 +166,6 @@ impl AnimationBank {
 
         let fwd_walk_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::ForwardWalk,
-            sprite_animation: 3,
             texture: walk_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
@@ -182,7 +178,6 @@ impl AnimationBank {
 
         let rev_walk_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::ReverseWalk,
-            sprite_animation: 3,
             texture: walk_texture,
             time: 0.0,
             sprite_frame: 0,
@@ -195,8 +190,31 @@ impl AnimationBank {
 
         let attack_1_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::Attack1,
-            sprite_animation: 3,
             texture: attack_1_texture,
+            time: 0.0,
+            sprite_frame: 0,
+            sequence: vec![(2, 3.0), (1, 3.0), (1, 3.0)],
+            sequence_index: 0,
+            sequence_frame_index: 0,
+            actively_playing: false,
+            always_plays: false,
+        }));
+
+        let attack_2_anim = Rc::new(RefCell::new(PlayerAnimation {
+            anim_type: AnimationType::Attack2,
+            texture: attack_2_texture,
+            time: 0.0,
+            sprite_frame: 0,
+            sequence: vec![(1, 3.0), (1, 3.0), (1, 3.0)],
+            sequence_index: 0,
+            sequence_frame_index: 0,
+            actively_playing: false,
+            always_plays: false,
+        }));
+
+        let attack_3_anim = Rc::new(RefCell::new(PlayerAnimation {
+            anim_type: AnimationType::Attack3,
+            texture: attack_3_texture,
             time: 0.0,
             sprite_frame: 0,
             sequence: vec![(2, 3.0), (1, 3.0), (1, 3.0)],
@@ -214,6 +232,8 @@ impl AnimationBank {
             fwd_walk_anim,
             rev_walk_anim,
             attack_1_anim,
+            attack_2_anim,
+            attack_3_anim,
         }
     }
 }
