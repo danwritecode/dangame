@@ -1,6 +1,8 @@
+use std::{cell::RefCell, rc::Rc};
+
 use macroquad::prelude::{animation::{AnimatedSprite, Animation}, *};
 
-use assets::{AnimationType, PlayerAnimation, PlayerSprite};
+use assets::{AnimationType, PlayerAnimation, AnimationBank};
 
 mod assets;
 
@@ -20,7 +22,7 @@ struct Entity {
     is_solid: bool
 }
 
-struct Player<'a> {
+struct Player {
     x: f32,
     y: f32,
     x_v: f32,
@@ -28,8 +30,8 @@ struct Player<'a> {
     facing: Facing,
     width: f32,
     height: f32,
-    state: &'a PlayerAnimation,
-    assets: &'a PlayerSprite,
+    state: Rc<RefCell<PlayerAnimation>>,
+    animation_bank: AnimationBank
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,8 +40,16 @@ enum Facing {
     Right,
 }
 
-impl<'a> Player<'a> {
-    async fn new(x: f32, y: f32, width: f32, height: f32, assets: &'a PlayerSprite) -> Self {
+impl Player {
+    async fn new(
+        x: f32, 
+        y: f32, 
+        width: f32, 
+        height: f32, 
+    ) -> Self {
+        let animation_bank = AnimationBank::load().await;
+        let state = animation_bank.idle_anim.clone();
+
         Self {
             x,
             y,
@@ -48,8 +58,8 @@ impl<'a> Player<'a> {
             width,
             height,
             facing: Facing::Right,
-            state: &assets.idle_anim,
-            assets
+            state,
+            animation_bank
         }
     }
 
@@ -63,9 +73,12 @@ impl<'a> Player<'a> {
         let wants_jump = is_key_down(KeyCode::Space);
         let wants_nothing = !is_any_key_down();
 
-        let mut next_animation_state = &self.state.anim_type;
+        let wants_attack_1 = is_key_down(KeyCode::E);
+
+        let mut next_animation_state = self.state.borrow().anim_type.clone();
         let is_airborn = self.y < FLOOR - self.height;
         let is_grounded = self.y >= FLOOR - self.height;
+        let is_actively_playing = self.state.borrow().actively_playing;
 
         // if y is above floor, we are jumping
         if is_airborn {
@@ -76,45 +89,51 @@ impl<'a> Player<'a> {
         if is_grounded { 
             self.y = FLOOR - self.height; 
             self.y_v = 0.0; 
-            next_animation_state = &AnimationType::Idle;
+            next_animation_state = AnimationType::Idle;
         }
 
         if wants_walk_left {
             self.x_v = WALK_SPEED * -1.0;
             self.facing = Facing::Left;
-            if is_grounded { next_animation_state = &AnimationType::ReverseWalk; }
+            if is_grounded { next_animation_state = AnimationType::ReverseWalk; }
             
         }
 
         if wants_walk_right {
             self.x_v = WALK_SPEED;
             self.facing = Facing::Right;
-            if is_grounded { next_animation_state = &AnimationType::ForwardWalk; }
+            if is_grounded { next_animation_state = AnimationType::ForwardWalk; }
         }
 
         if wants_run_left {
             self.x_v = RUN_SPEED * -1.0;
             self.facing = Facing::Left;
-            if is_grounded { next_animation_state = &AnimationType::ReverseRun; }
+            if is_grounded { next_animation_state = AnimationType::ReverseRun; }
             
         }
 
         if wants_run_right {
             self.x_v = RUN_SPEED;
             self.facing = Facing::Right;
-            if is_grounded { next_animation_state = &AnimationType::ForwardRun; }
+            if is_grounded { next_animation_state = AnimationType::ForwardRun; }
         }
 
         if wants_jump {
             if is_grounded {
                 self.y_v = JUMP_SPEED;
-                next_animation_state = &AnimationType::Jump;
+                next_animation_state = AnimationType::Jump;
             }
         }
 
         if wants_nothing {
             if is_grounded {
-                next_animation_state = &AnimationType::Idle;
+                next_animation_state = AnimationType::Idle;
+            }
+        }
+
+        if wants_attack_1 {
+            if is_grounded {
+                next_animation_state = AnimationType::Attack1;
             }
         }
 
@@ -125,25 +144,34 @@ impl<'a> Player<'a> {
         // x velocity is only used for current frame
         self.x_v = 0.0;
 
-        if next_animation_state != &self.state.anim_type { 
+        if next_animation_state != self.state.borrow().anim_type && !is_actively_playing {
+            // we decided above if we want to change animations or not
+            // if we want to change animations, we need to stop the current animation
+            // self.state.borrow_mut().reset();
+
             match next_animation_state {
                 AnimationType::Idle => {
-                    self.state = &self.assets.idle_anim;
+                    self.state = Rc::clone(&self.animation_bank.idle_anim);
                 },
-                AnimationType::ForwardRun => {
-                    self.state = &self.assets.fwd_run_anim;
+                AnimationType::ForwardRun  => {
+                    self.state = Rc::clone(&self.animation_bank.fwd_run_anim);
                 },
-                AnimationType::ReverseRun => {
-                    self.state = &self.assets.rev_run_anim;
+                AnimationType::ReverseRun  => {
+                    self.state = Rc::clone(&self.animation_bank.rev_run_anim);
                 },
-                AnimationType::ForwardWalk => {
-                    self.state = &self.assets.fwd_walk_anim;
+                AnimationType::ForwardWalk  => {
+                    self.state = Rc::clone(&self.animation_bank.fwd_walk_anim);
                 },
-                AnimationType::ReverseWalk => {
-                    self.state = &self.assets.rev_walk_anim;
+                AnimationType::ReverseWalk  => {
+                    self.state = Rc::clone(&self.animation_bank.rev_walk_anim);
                 }
-                AnimationType::Jump => {
-                    self.state = &self.assets.jump_anim;
+                AnimationType::Jump  => {
+                    self.state = Rc::clone(&self.animation_bank.jump_anim);
+                    self.state.borrow_mut().actively_playing = true;
+                },
+                AnimationType::Attack1 => {
+                    self.state = Rc::clone(&self.animation_bank.attack_1_anim);
+                    self.state.borrow_mut().actively_playing = true;
                 },
             }
         }
@@ -153,42 +181,8 @@ impl<'a> Player<'a> {
 #[macroquad::main("Dangame")]
 async fn main() {
     let background = load_texture("spritesheets/background.png").await.unwrap();
-
-    let mut player_sprite = PlayerSprite::load().await;
-    let mut p1 = Player::new(100.0, FLOOR - 20.0, 20.0, 80.0, &mut player_sprite).await;
-
+    let mut p1 = Player::new(100.0, FLOOR - 20.0, 20.0, 80.0).await;
     let mut entities:Vec<Entity> = Vec::new();
-
-    let mut sprites = AnimatedSprite::new(128, 128,
-        &[
-            Animation {
-                name: "idle".to_string(),
-                row: 0,
-                frames: 6,
-                fps: 20
-            },
-            Animation {
-                name: "run".to_string(),
-                row: 0,
-                frames: 8,
-                fps: 20
-            },
-            Animation {
-                name: "jump".to_string(),
-                row: 0,
-                frames: 10,
-                fps: 4
-            },
-            Animation {
-                name: "walk".to_string(),
-                row: 0,
-                frames: 8,
-                fps: 20
-            },
-        ],
-        true
-    );
-
 
     loop {
         let dt = get_frame_time();
@@ -196,15 +190,23 @@ async fn main() {
 
         draw_texture(&background, 0., 0., WHITE);
 
-        sprites.set_animation(p1.state.sprite_animation);
+        const TILE_WIDTH: f32 = 128.0;
+        const TILE_HEIGHT: f32 = 128.0;
+        const SPRITE_SHEET_ROW: u32 = 0;
+
         draw_texture_ex(
-            &p1.state.texture,
+            &p1.state.borrow().texture,
             p1.x - 50.0,
             p1.y - 50.0,
             WHITE,
             DrawTextureParams {
-                source: Some(sprites.frame().source_rect),
-                dest_size: Some(sprites.frame().dest_size),
+                source: Some(Rect::new(
+                    TILE_WIDTH * p1.state.borrow().sprite_frame as f32,
+                    TILE_HEIGHT * SPRITE_SHEET_ROW as f32,
+                    TILE_WIDTH,
+                    TILE_HEIGHT,
+                )),
+                dest_size: Some(vec2(128.0, 128.0)),
                 flip_x: p1.facing == Facing::Left,
                 ..Default::default()
             }
@@ -213,12 +215,18 @@ async fn main() {
         draw_rectangle(0.0, FLOOR, screen_width(), 300.0, BLACK);
 
         // draw some debugging text with player velocity
-        draw_text(&format!("vx: {} | vy: {}", p1.x_v, p1.y_v), 20.0, 20.0, 20.0, DARKGRAY);
-        draw_text(&format!("x: {} | y: {}", p1.x, p1.y), 20.0, 35.0, 20.0, DARKGRAY);
-        draw_text(&format!("animation: {:?}", p1.state.anim_type), 20.0, 50.0, 20.0, DARKGRAY);
-        draw_text(&format!("{:?}", FLOOR - p1.height), 20.0, 70.0, 20.0, DARKGRAY);
+        draw_text(&format!("FPS: {}", get_fps()), 20.0, 20.0, 20.0, DARKGRAY);
+        draw_text(&format!("vx: {} | vy: {}", p1.x_v, p1.y_v), 20.0, 35.0, 20.0, DARKGRAY);
+        draw_text(&format!("x: {} | y: {}", p1.x, p1.y), 20.0, 50.0, 20.0, DARKGRAY);
+        draw_text(&format!("animation: {:?}", p1.state.borrow().anim_type), 20.0, 65.0, 20.0, DARKGRAY);
+        draw_text(&format!("{:?}", FLOOR - p1.height), 20.0, 80.0, 20.0, DARKGRAY);
 
-        sprites.update();
+        // i want to see the animation frame data
+        draw_text(&format!("sprite frame: {:?}", p1.state.borrow().sprite_frame), 20.0, 100.0, 20.0, DARKGRAY);
+        draw_text(&format!("sequence frame:{:?}", p1.state.borrow().sequence_frame_index), 20.0, 115.0, 20.0, DARKGRAY);
+        draw_text(&format!("sequence: {:?}", p1.state.borrow().sequence_index), 20.0, 130.0, 20.0, DARKGRAY);
+
+        p1.state.borrow_mut().update();
         next_frame().await
     }
 }
