@@ -21,8 +21,8 @@ pub struct PlayerAnimation {
     pub texture: Texture2D,
     pub time: f32,
 
-    // Frame is the current frame of the spritesheet
-    // NOT the animation frame
+    /// Frame is the current frame of the spritesheet
+    /// NOT the animation frame
     pub sprite_frame: usize,
 
     // Sequence is a grouping of frames and their FPS
@@ -185,10 +185,7 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(2, 3.0, 0.0, 0.0), 
-                AnimationSequence::new(3, 20.0, 0.0, 0.0), 
-                AnimationSequence::new(2, 3.0, 0.0, 0.0), 
-                AnimationSequence::new(3, 20.0, 0.0, 0.0)
+                AnimationSequence::new(10, 11.0, 0.0, 0.0), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -258,9 +255,9 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(2, 6.0, 50.0, 0.0), 
-                AnimationSequence::new(1, 6.0, 0.0, 0.0), 
-                AnimationSequence::new(1, 6.0, 100.0, 0.0), 
+                AnimationSequence::new(2, 8.0, 75.0, 0.0), 
+                AnimationSequence::new(1, 8.0, 0.0, 0.0), 
+                AnimationSequence::new(1, 8.0, 125.0, 0.0), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,

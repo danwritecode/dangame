@@ -1,0 +1,31 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "",
+    "expandedProjectPaths": [
+        "maps",
+        "."
+    ],
+    "file.lastUsedOpenFilter": "All Files (*)",
+    "fileStates": {
+        "tilesets/exclusion-zone-tileset/Test.tsx": {
+            "scaleInEditor": 1
+        }
+    },
+    "last.exportedFilePath": "/Users/mbp929/documents/apps/temp/dangame/maps",
+    "last.imagePath": "/Users/mbp929/documents/apps/temp/dangame/tilesets/exclusion-zone-tileset/1 Tiles",
+    "map.height": 26,
+    "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
+    "map.lastUsedFormat": "tmx",
+    "map.width": 40,
+    "openFiles": [
+    ],
+    "project": "tileset.tiled-project",
+    "recentFiles": [
+        "tilesets/exclusion-zone-tileset/Test.tsx"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.type": 1
+}
