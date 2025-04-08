@@ -5,7 +5,7 @@ use macroquad_tiled::{self as tiled, Map};
 use macroquad_platformer::*;
 
 
-use assets::{AnimationType, PlayerAnimation, AnimationBank};
+use assets::{AnimationBank, AnimationType, PlayerAnimation, UpdateDelta};
 
 mod assets;
 
@@ -85,26 +85,32 @@ impl Player {
         let wants_attack_2 = is_key_down(KeyCode::Q);
         let wants_attack_3 = is_key_down(KeyCode::R);
 
-        // NOT WORKING YET
         let pos = self.world.borrow().actor_pos(self.collider);
         let is_grounded = self.world.borrow().collide_check(self.collider, pos + vec2(0., 1.));
+        let is_colliding_right = self.world.borrow().collide_check(self.collider, pos + vec2(1., 0.));
+        let is_colliding_left = self.world.borrow().collide_check(self.collider, pos - vec2(1., 0.));
 
         let is_airborn = !is_grounded;
         let is_actively_playing = self.state.borrow().actively_playing;
 
         let mut next_animation_state = self.state.borrow().anim_type.clone();
 
-        // if y is above floor, we are jumping
         if is_airborn {
             self.y_v -= GRAVITY * dt;
             self.y -=  self.y_v * dt;
         }
 
-        if is_grounded { 
-            // self.y = FLOOR - self.height; 
-            self.y_v = 0.0; 
-            next_animation_state = AnimationType::Idle;
-        }
+        // this represents when a player WAS jumping but just touched the ground
+        // they have negative y velocity because they were falling back down
+        if is_grounded && self.y_v < 0.0 { self.y_v = 0.0; }
+
+        // if grounded the we have friction and reset to 0.0 
+        if is_grounded { self.x_v = 0.0; }
+
+        // if we are moving left and hit something on our left, we reset to 0.0
+        if is_colliding_left && self.x_v < 0.0 { self.x_v = 0.0; }
+        // if we are moving right and hit something on our right, we reset to 0.0
+        if is_colliding_right && self.x_v > 0.0 { self.x_v = 0.0; }
 
         if wants_walk_left {
             self.x_v = WALK_SPEED * -1.0;
@@ -133,9 +139,8 @@ impl Player {
         }
 
         if wants_jump {
-            self.y_v = JUMP_SPEED;
             if is_grounded {
-                self.y_v = JUMP_SPEED;
+                // self.y_v = JUMP_SPEED;
                 next_animation_state = AnimationType::Jump;
             }
         }
@@ -167,13 +172,10 @@ impl Player {
         self.world.borrow_mut().move_h(self.collider, self.x_v * dt);
         self.world.borrow_mut().move_v(self.collider, (self.y_v * -1.0) * dt);
 
-        // x velocity is only used for current frame
-        self.x_v = 0.0;
-
         if next_animation_state != self.state.borrow().anim_type && !is_actively_playing {
             // we decided above if we want to change animations or not
             // if we want to change animations, we need to stop the current animation
-            // self.state.borrow_mut().reset();
+            self.state.borrow_mut().reset();
 
             match next_animation_state {
                 AnimationType::Idle => {
@@ -231,7 +233,7 @@ async fn main() {
         p1.update(dt);
 
         let pos = world.borrow_mut().actor_pos(p1.collider);
-        // draw_rectangle_lines(pos.x, pos.y, PLAYER_WIDTH, PLAYER_HEIGHT, 4.0, RED);
+        draw_rectangle_lines(pos.x, pos.y, PLAYER_WIDTH, PLAYER_HEIGHT, 4.0, RED);
 
         // player gets drawn here
         draw_texture_ex(
@@ -255,7 +257,7 @@ async fn main() {
         // draw some debugging text with player velocity
         draw_text(&format!("FPS: {}", get_fps()), 20.0, 20.0, 20.0, DARKGRAY);
         draw_text(&format!("vx: {} | vy: {}", p1.x_v, p1.y_v), 20.0, 35.0, 20.0, DARKGRAY);
-        draw_text(&format!("x: {} | y: {}", p1.x, p1.y), 20.0, 50.0, 20.0, DARKGRAY);
+        draw_text(&format!("x: {} | y: {}", pos.x, pos.y), 20.0, 50.0, 20.0, DARKGRAY);
         draw_text(&format!("animation: {:?}", p1.state.borrow().anim_type), 20.0, 65.0, 20.0, DARKGRAY);
 
         // i want to see the animation frame data
@@ -263,17 +265,24 @@ async fn main() {
         draw_text(&format!("sequence frame:{:?}", p1.state.borrow().sequence_frame_index), 20.0, 115.0, 20.0, DARKGRAY);
         draw_text(&format!("sequence: {:?}", p1.state.borrow().sequence_index), 20.0, 130.0, 20.0, DARKGRAY);
 
-        let (dx, dy) = p1.state.borrow_mut().update();
-
-        if p1.facing == Facing::Left {
-            world.borrow_mut().move_h(p1.collider, dx * -1.0);
-        } else {
-            world.borrow_mut().move_h(p1.collider, dx);
-        }
-        world.borrow_mut().move_v(p1.collider, dy);
+        let delta = p1.state.borrow_mut().update();
+        apply_deltas(&mut p1, &world, delta);
 
         next_frame().await
     }
+}
+
+fn apply_deltas(p1: &mut Player, world: &Rc<RefCell<World>>, delta: UpdateDelta) {
+    if p1.facing == Facing::Left {
+        world.borrow_mut().move_h(p1.collider, delta.pos_delta.0 * -1.0);
+        if delta.vel_delta.0 != 0.0 { p1.x_v -= delta.vel_delta.0; }
+    } else {
+        world.borrow_mut().move_h(p1.collider, delta.pos_delta.0);
+        if delta.vel_delta.0 != 0.0 { p1.x_v += delta.vel_delta.0; }
+    }
+
+    world.borrow_mut().move_v(p1.collider, delta.pos_delta.1);
+    if delta.vel_delta.1 != 0.0 { p1.y_v += delta.vel_delta.1; }
 }
 
 async fn load_map() -> Map {
