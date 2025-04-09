@@ -5,14 +5,18 @@ use macroquad::{texture::{load_texture, Texture2D}, time::get_frame_time};
 #[derive(Clone, Debug, PartialEq)]
 pub enum AnimationType {
     Idle,
+    Crouch,
     ForwardRun,
     ReverseRun,
     Jump,
+    JumpMoving,
+    Landing,
     ForwardWalk,
     ReverseWalk,
     Attack1,
     Attack2,
     Attack3,
+    SoaringKick,
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +41,9 @@ pub struct PlayerAnimation {
 
     /// For animations like Idle, we just want to lop them
     pub always_plays: bool,
+
+    /// If an animation is interruptable, it means that it can be interrupted by another animation
+    pub is_interuptable: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -47,10 +54,24 @@ pub struct AnimationSequence {
     y_movement: f32,
     x_accleration: f32,
     y_accleration: f32,
+
+    /// the difference in height during an animation
+    h_delta: i32,
+    /// the difference in width during an animation
+    w_delta: i32,
 }
 
 impl AnimationSequence {
-    pub fn new(frames: usize, fps: f32, x_movement: f32, y_movement: f32, x_accleration: f32, y_accleration: f32) -> Self {
+    pub fn new(
+        frames: usize, 
+        fps: f32, 
+        x_movement: f32, 
+        y_movement: f32, 
+        x_accleration: f32, 
+        y_accleration: f32,
+        h_delta: i32,
+        w_delta: i32,
+    ) -> Self {
         Self {
             frames,
             fps,
@@ -58,6 +79,8 @@ impl AnimationSequence {
             y_movement,
             x_accleration,
             y_accleration,
+            h_delta,
+            w_delta,
         }
     }
 }
@@ -65,26 +88,30 @@ impl AnimationSequence {
 type PosDelta = (f32, f32);
 type VelDelta = (f32, f32);
 
-pub struct UpdateDelta {
+pub struct UpdateDeltas {
     pub pos_delta: PosDelta,
     pub vel_delta: VelDelta,
+    pub h_delta: i32,
+    pub w_delta: i32,
 }
 
-impl Default for UpdateDelta {
+impl Default for UpdateDeltas {
     fn default() -> Self {
-        Self { pos_delta: (0.0, 0.0), vel_delta: (0.0, 0.0) }
+        Self { pos_delta: (0.0, 0.0), vel_delta: (0.0, 0.0), h_delta: 0, w_delta: 0 }
     }
 }
 
 impl PlayerAnimation {
-    pub fn update(&mut self) -> UpdateDelta {
+    pub fn update(&mut self) -> UpdateDeltas {
         let sequence = &self.animation_sequence.get(self.sequence_index); 
         let sequence = match sequence {
             Some(sequence) => sequence,
-            None => return UpdateDelta::default(),
+            None => return UpdateDeltas::default(),
         };
 
-        let mut delta = UpdateDelta::default();
+        let mut delta = UpdateDeltas::default();
+        delta.h_delta = sequence.h_delta;
+        delta.w_delta = sequence.w_delta;
 
         if self.actively_playing || self.always_plays {
             self.time += get_frame_time();
@@ -138,22 +165,28 @@ impl PlayerAnimation {
 
 pub struct AnimationBank {
     pub idle_anim: Rc<RefCell<PlayerAnimation>>,
+    pub crouch_anim: Rc<RefCell<PlayerAnimation>>,
     pub fwd_run_anim: Rc<RefCell<PlayerAnimation>>,
     pub rev_run_anim: Rc<RefCell<PlayerAnimation>>,
     pub jump_anim: Rc<RefCell<PlayerAnimation>>,
+    pub jump_anim_moving: Rc<RefCell<PlayerAnimation>>,
+    pub landing_anim: Rc<RefCell<PlayerAnimation>>,
     pub fwd_walk_anim: Rc<RefCell<PlayerAnimation>>,
     pub rev_walk_anim: Rc<RefCell<PlayerAnimation>>,
     pub attack_1_anim: Rc<RefCell<PlayerAnimation>>,
     pub attack_2_anim: Rc<RefCell<PlayerAnimation>>,
     pub attack_3_anim: Rc<RefCell<PlayerAnimation>>,
+    pub soaring_kick_anim: Rc<RefCell<PlayerAnimation>>,
 }
 
 impl AnimationBank {
     pub async fn load() -> Self {
         let idle_texture = load_texture("spritesheets/Fighter/Idle.png").await.unwrap();
+        let crouch_texture = load_texture("spritesheets/Fighter/Crouch.png").await.unwrap();
         let run_texture = load_texture("spritesheets/Fighter/Run.png").await.unwrap();
-        let jump_texture = load_texture("spritesheets/Fighter/Jump.png").await.unwrap();
+        let jump_texture = load_texture("spritesheets/Fighter/Jump_02.png").await.unwrap();
         let walk_texture = load_texture("spritesheets/Fighter/Walk.png").await.unwrap();
+        let landing_texture = load_texture("spritesheets/Fighter/Landing.png").await.unwrap();
         let attack_1_texture = load_texture("spritesheets/Fighter/Attack_1.png").await.unwrap();
         let attack_2_texture = load_texture("spritesheets/Fighter/Attack_2.png").await.unwrap();
         let attack_3_texture = load_texture("spritesheets/Fighter/Attack_3.png").await.unwrap();
@@ -162,12 +195,26 @@ impl AnimationBank {
             anim_type: AnimationType::Idle,
             texture: idle_texture,
             time: 0.0,
-            animation_sequence: vec![AnimationSequence::new(6, 20.0, 0.0, 0.0, 0.0, 0.0)],
+            animation_sequence: vec![AnimationSequence::new(6, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
             sprite_frame: 0,
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: true,
+            is_interuptable: true,
+        }));
+
+        let crouch_anim = Rc::new(RefCell::new(PlayerAnimation {
+            anim_type: AnimationType::Crouch,
+            texture: crouch_texture,
+            time: 0.0,
+            animation_sequence: vec![AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 0.0, 30, 0)],
+            sprite_frame: 0,
+            sequence_index: 0,
+            sequence_frame_index: 0,
+            actively_playing: false,
+            always_plays: false,
+            is_interuptable: true,
         }));
 
         let fwd_run_anim = Rc::new(RefCell::new(PlayerAnimation {
@@ -175,11 +222,12 @@ impl AnimationBank {
             texture: run_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
-            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: true,
+            is_interuptable: true,
         }));
 
         let rev_run_anim = Rc::new(RefCell::new(PlayerAnimation {
@@ -187,29 +235,61 @@ impl AnimationBank {
             texture: run_texture,
             time: 0.0,
             sprite_frame: 0,
-            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: true,
+            is_interuptable: true,
         }));
 
         let jump_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::Jump,
-            texture: jump_texture,
+            texture: jump_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(1, 40.0, 0.0, 0.0, 0.0, 10.0), 
-                AnimationSequence::new(2, 25.0, 0.0, 0.0, 0.0, 200.0), 
-                AnimationSequence::new(1, 10.0, 0.0, 0.0, 0.0, 400.0), 
-                AnimationSequence::new(1, 1.0, 0.0, 0.0, 0.0, 0.0), 
-                AnimationSequence::new(4, 15.0, 0.0, 0.0, 0.0, 0.0), 
+                AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 500.0, 0, 0), 
+                AnimationSequence::new(2, 20.0, 0.0, 0.0, 0.0, 0.0, 23, 0), 
+                AnimationSequence::new(4, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: false,
+            is_interuptable: true,
+        }));
+
+        let jump_anim_moving = Rc::new(RefCell::new(PlayerAnimation {
+            anim_type: AnimationType::JumpMoving,
+            texture: jump_texture,
+            time: 0.0,
+            sprite_frame: 0,
+            animation_sequence: vec![
+                AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 500.0, 0, 0), 
+                AnimationSequence::new(2, 20.0, 0.0, 0.0, 0.0, 0.0, 23, 0), 
+                AnimationSequence::new(5, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+            ],
+            sequence_index: 0,
+            sequence_frame_index: 0,
+            actively_playing: false,
+            always_plays: false,
+            is_interuptable: true,
+        }));
+
+        let landing_anim = Rc::new(RefCell::new(PlayerAnimation {
+            anim_type: AnimationType::Landing,
+            texture: landing_texture,
+            time: 0.0,
+            sprite_frame: 0,
+            animation_sequence: vec![
+                AnimationSequence::new(2, 10.0, 0.0, 0.0, 0.0, 0.0, 30, 0), 
+            ],
+            sequence_index: 0,
+            sequence_frame_index: 0,
+            actively_playing: false,
+            always_plays: false,
+            is_interuptable: true,
         }));
 
         let fwd_walk_anim = Rc::new(RefCell::new(PlayerAnimation {
@@ -217,11 +297,12 @@ impl AnimationBank {
             texture: walk_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
-            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: true,
+            is_interuptable: true,
         }));
 
         let rev_walk_anim = Rc::new(RefCell::new(PlayerAnimation {
@@ -229,11 +310,12 @@ impl AnimationBank {
             texture: walk_texture,
             time: 0.0,
             sprite_frame: 0,
-            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: true,
+            is_interuptable: true,
         }));
 
         let attack_1_anim = Rc::new(RefCell::new(PlayerAnimation {
@@ -242,14 +324,15 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(2, 3.0, 0.0, 0.0, 0.0, 0.0), 
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0), 
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0), 
+                AnimationSequence::new(2, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: false,
+            is_interuptable: true,
         }));
 
         let attack_2_anim = Rc::new(RefCell::new(PlayerAnimation {
@@ -258,42 +341,64 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0), 
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0), 
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: false,
+            is_interuptable: true,
         }));
 
         let attack_3_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::Attack3,
-            texture: attack_3_texture,
+            texture: attack_3_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(2, 8.0, 75.0, 0.0, 0.0, 0.0), 
-                AnimationSequence::new(1, 8.0, 0.0, 0.0, 0.0, 0.0), 
-                AnimationSequence::new(1, 8.0, 300.0, 0.0, 0.0, 0.0), 
+                AnimationSequence::new(2, 8.0, 75.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 8.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 8.0, 50.0, 0.0, 0.0, 0.0, 0, 0), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
             always_plays: false,
+            is_interuptable: true,
+        }));
+
+        let soaring_kick_anim = Rc::new(RefCell::new(PlayerAnimation {
+            anim_type: AnimationType::SoaringKick,
+            texture: attack_3_texture,
+            time: 0.0,
+            sprite_frame: 0,
+            animation_sequence: vec![
+                AnimationSequence::new(2, 8.0, 0.0, 0.0, 1250.0, -200.0, 0, 0), 
+                AnimationSequence::new(2, 8.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+            ],
+            sequence_index: 0,
+            sequence_frame_index: 0,
+            actively_playing: false,
+            always_plays: false,
+            is_interuptable: false,
         }));
 
         Self {
             idle_anim,
+            crouch_anim,
             fwd_run_anim,
             rev_run_anim,
             jump_anim,
+            jump_anim_moving,
+            landing_anim,
             fwd_walk_anim,
             rev_walk_anim,
             attack_1_anim,
             attack_2_anim,
             attack_3_anim,
+            soaring_kick_anim
         }
     }
 }

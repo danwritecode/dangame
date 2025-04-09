@@ -5,7 +5,8 @@ use macroquad_tiled::{self as tiled, Map};
 use macroquad_platformer::*;
 
 
-use assets::{AnimationBank, AnimationType, PlayerAnimation, UpdateDelta};
+
+use assets::{AnimationBank, AnimationType, PlayerAnimation, UpdateDeltas};
 
 mod assets;
 
@@ -17,8 +18,8 @@ const GRAVITY: f32 = 800.0;
 const WINDOW_HEIGHT: i32 = 832;
 const WINDOW_WIDTH: i32 = 1280;
 
-const PLAYER_WIDTH: f32 = 28.0;
-const PLAYER_HEIGHT: f32 = 93.0;
+const DEFAULT_PLAYER_WIDTH: i32 = 28;
+const DEFAULT_PLAYER_HEIGHT: i32 = 93;
 
 const TILE_WIDTH: f32 = 128.0;
 const TILE_HEIGHT: f32 = 128.0;
@@ -30,8 +31,8 @@ struct Player {
     x_v: f32,
     y_v: f32,
     facing: Facing,
-    width: f32,
-    height: f32,
+    width: i32,
+    height: i32,
     state: Rc<RefCell<PlayerAnimation>>,
     animation_bank: AnimationBank,
     collider: Actor,
@@ -48,8 +49,8 @@ impl Player {
     async fn new(
         x: f32, 
         y: f32, 
-        width: f32, 
-        height: f32, 
+        width: i32, 
+        height: i32, 
         world: Rc<RefCell<World>>,
     ) -> Self {
         let animation_bank = AnimationBank::load().await;
@@ -72,6 +73,8 @@ impl Player {
     }
 
     fn update(&mut self, dt: f32) {
+        let wants_crouch = is_key_down(KeyCode::C);
+
         let wants_walk_left = is_key_down(KeyCode::A);
         let wants_walk_right = is_key_down(KeyCode::D);
 
@@ -79,11 +82,12 @@ impl Player {
         let wants_run_right = is_key_down(KeyCode::D) && is_key_down(KeyCode::LeftShift);
 
         let wants_jump = is_key_down(KeyCode::Space);
-        let wants_nothing = !is_any_key_down();
 
         let wants_attack_1 = is_key_down(KeyCode::E);
         let wants_attack_2 = is_key_down(KeyCode::Q);
-        let wants_attack_3 = is_key_down(KeyCode::R);
+        let wants_kick = is_key_down(KeyCode::R);
+
+        let wants_nothing = !is_any_key_down();
 
         let pos = self.world.borrow().actor_pos(self.collider);
         let is_grounded = self.world.borrow().collide_check(self.collider, pos + vec2(0., 1.));
@@ -92,17 +96,26 @@ impl Player {
 
         let is_airborn = !is_grounded;
         let is_actively_playing = self.state.borrow().actively_playing;
+        let is_interuptable = self.state.borrow().is_interuptable;
+        let was_just_airborn = is_grounded && self.y_v < 0.0;
 
         let mut next_animation_state = self.state.borrow().anim_type.clone();
 
         if is_airborn {
             self.y_v -= GRAVITY * dt;
             self.y -=  self.y_v * dt;
+
+            if wants_kick {
+                next_animation_state = AnimationType::SoaringKick;
+            }
         }
 
         // this represents when a player WAS jumping but just touched the ground
         // they have negative y velocity because they were falling back down
-        if is_grounded && self.y_v < 0.0 { self.y_v = 0.0; }
+        if was_just_airborn { 
+            self.y_v = 0.0; 
+            next_animation_state = AnimationType::Landing;
+        }
 
         // if grounded the we have friction and reset to 0.0 
         if is_grounded { self.x_v = 0.0; }
@@ -112,62 +125,79 @@ impl Player {
         // if we are moving right and hit something on our right, we reset to 0.0
         if is_colliding_right && self.x_v > 0.0 { self.x_v = 0.0; }
 
-        if wants_walk_left {
-            self.x_v = WALK_SPEED * -1.0;
-            self.facing = Facing::Left;
-            if is_grounded { next_animation_state = AnimationType::ReverseWalk; }
-            
-        }
-
-        if wants_walk_right {
-            self.x_v = WALK_SPEED;
-            self.facing = Facing::Right;
-            if is_grounded { next_animation_state = AnimationType::ForwardWalk; }
-        }
-
-        if wants_run_left {
-            self.x_v = RUN_SPEED * -1.0;
-            self.facing = Facing::Left;
-            if is_grounded { next_animation_state = AnimationType::ReverseRun; }
-            
-        }
-
-        if wants_run_right {
-            self.x_v = RUN_SPEED;
-            self.facing = Facing::Right;
-            if is_grounded { next_animation_state = AnimationType::ForwardRun; }
-        }
-
-        if wants_jump {
-            if is_grounded {
-                // self.y_v = JUMP_SPEED;
-                next_animation_state = AnimationType::Jump;
-            }
-        }
-
         if wants_nothing {
-            if is_grounded {
+            if is_grounded && !was_just_airborn {
                 next_animation_state = AnimationType::Idle;
             }
         }
 
-        if wants_attack_1 {
-            if is_grounded {
-                next_animation_state = AnimationType::Attack1;
+        if is_interuptable {
+            if wants_walk_left {
+                if !wants_crouch {
+                    self.x_v = WALK_SPEED * -1.0;
+                    self.facing = Facing::Left;
+                    if is_grounded { next_animation_state = AnimationType::ReverseWalk; }
+                }
+            }
+
+            if wants_walk_right {
+                if !wants_crouch {
+                    self.x_v = WALK_SPEED;
+                    self.facing = Facing::Right;
+                    if is_grounded { next_animation_state = AnimationType::ForwardWalk; }
+                }
+            }
+
+            if wants_run_left {
+                if !wants_crouch {
+                    self.x_v = RUN_SPEED * -1.0;
+                    self.facing = Facing::Left;
+                    if is_grounded { next_animation_state = AnimationType::ReverseRun; }
+                }
+                
+            }
+
+            if wants_run_right {
+                if !wants_crouch {
+                    self.x_v = RUN_SPEED;
+                    self.facing = Facing::Right;
+                    if is_grounded { next_animation_state = AnimationType::ForwardRun; }
+                }
+            }
+
+            if wants_jump {
+                if is_grounded && !wants_crouch {
+                    if self.x_v == 0.0 {
+                        next_animation_state = AnimationType::Jump;
+                    } else {
+                        next_animation_state = AnimationType::JumpMoving;
+                    }
+                }
+            }
+
+            if wants_attack_1 {
+                if is_grounded {
+                    next_animation_state = AnimationType::Attack1;
+                }
+            }
+
+            if wants_attack_2 {
+                if is_grounded {
+                    next_animation_state = AnimationType::Attack2;
+                }
+            }
+
+            if wants_kick {
+                if is_grounded {
+                    next_animation_state = AnimationType::Attack3;
+                }
+            }
+
+            if wants_crouch {
+                next_animation_state = AnimationType::Crouch;
             }
         }
 
-        if wants_attack_2 {
-            if is_grounded {
-                next_animation_state = AnimationType::Attack2;
-            }
-        }
-
-        if wants_attack_3 {
-            if is_grounded {
-                next_animation_state = AnimationType::Attack3;
-            }
-        }
 
         self.world.borrow_mut().move_h(self.collider, self.x_v * dt);
         self.world.borrow_mut().move_v(self.collider, (self.y_v * -1.0) * dt);
@@ -181,20 +211,32 @@ impl Player {
                 AnimationType::Idle => {
                     self.state = Rc::clone(&self.animation_bank.idle_anim);
                 },
-                AnimationType::ForwardRun  => {
+                AnimationType::Crouch => {
+                    self.state = Rc::clone(&self.animation_bank.crouch_anim);
+                    self.state.borrow_mut().actively_playing = true;
+                },
+                AnimationType::ForwardRun => {
                     self.state = Rc::clone(&self.animation_bank.fwd_run_anim);
                 },
-                AnimationType::ReverseRun  => {
+                AnimationType::ReverseRun => {
                     self.state = Rc::clone(&self.animation_bank.rev_run_anim);
                 },
-                AnimationType::ForwardWalk  => {
+                AnimationType::ForwardWalk => {
                     self.state = Rc::clone(&self.animation_bank.fwd_walk_anim);
                 },
-                AnimationType::ReverseWalk  => {
+                AnimationType::ReverseWalk => {
                     self.state = Rc::clone(&self.animation_bank.rev_walk_anim);
                 }
-                AnimationType::Jump  => {
+                AnimationType::Jump => {
                     self.state = Rc::clone(&self.animation_bank.jump_anim);
+                    self.state.borrow_mut().actively_playing = true;
+                },
+                AnimationType::JumpMoving => {
+                    self.state = Rc::clone(&self.animation_bank.jump_anim_moving);
+                    self.state.borrow_mut().actively_playing = true;
+                },
+                AnimationType::Landing => {
+                    self.state = Rc::clone(&self.animation_bank.landing_anim);
                     self.state.borrow_mut().actively_playing = true;
                 },
                 AnimationType::Attack1 => {
@@ -207,6 +249,10 @@ impl Player {
                 },
                 AnimationType::Attack3 => {
                     self.state = Rc::clone(&self.animation_bank.attack_3_anim);
+                    self.state.borrow_mut().actively_playing = true;
+                },
+                AnimationType::SoaringKick => {
+                    self.state = Rc::clone(&self.animation_bank.soaring_kick_anim);
                     self.state.borrow_mut().actively_playing = true;
                 },
             }
@@ -223,23 +269,36 @@ async fn main() {
     let mut world = Rc::new(RefCell::new(World::new()));
     world.borrow_mut().add_static_tiled_layer(static_colliders, 32., 32., 40, 1);
 
-    let mut p1 = Player::new(600.0, 50.0, PLAYER_WIDTH, PLAYER_HEIGHT, world.clone()).await;
+    let mut p1 = Player::new(600.0, 50.0, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, world.clone()).await;
 
     loop {
         let dt = get_frame_time();
         draw_texture(&background, 0., 0., WHITE);
         tiled_map.draw_tiles("Platforms", Rect::new(0.0, 0.0, WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32), None);
 
+        let player_pos = world.borrow_mut().actor_pos(p1.collider);
+        let player_size = world.borrow_mut().actor_size(p1.collider);
+        println!("player pos before update: {:?}", player_pos);
+
+        // update player physics
         p1.update(dt);
 
-        let pos = world.borrow_mut().actor_pos(p1.collider);
-        draw_rectangle_lines(pos.x, pos.y, PLAYER_WIDTH, PLAYER_HEIGHT, 4.0, RED);
+        // update player animation
+        let delta = p1.state.borrow_mut().update();
+        apply_deltas(&mut p1, &world, &delta);
+
+        // world.borrow_mut().move_v(p1.collider, delta.pos_delta.1);
+        // world.borrow_mut().set_actor_size(p1.collider, DEFAULT_PLAYER_WIDTH - delta.w_delta,  DEFAULT_PLAYER_HEIGHT - delta.h_delta);
+
+        draw_rectangle_lines(player_pos.x, player_pos.y, player_size.0 as f32,  player_size.1 as f32, 4.0, RED);
+
+        println!("player pos after updates: {:?}", player_pos);
 
         // player gets drawn here
         draw_texture_ex(
             &p1.state.borrow().texture,
-            pos.x - PLAYER_WIDTH - 22.0,
-            pos.y - 35.0,
+            player_pos.x - player_size.0 as f32 - 22.0,
+            player_pos.y - 35.0,
             WHITE,
             DrawTextureParams {
                 source: Some(Rect::new(
@@ -257,7 +316,7 @@ async fn main() {
         // draw some debugging text with player velocity
         draw_text(&format!("FPS: {}", get_fps()), 20.0, 20.0, 20.0, DARKGRAY);
         draw_text(&format!("vx: {} | vy: {}", p1.x_v, p1.y_v), 20.0, 35.0, 20.0, DARKGRAY);
-        draw_text(&format!("x: {} | y: {}", pos.x, pos.y), 20.0, 50.0, 20.0, DARKGRAY);
+        draw_text(&format!("x: {} | y: {}", player_pos.x, player_pos.y), 20.0, 50.0, 20.0, DARKGRAY);
         draw_text(&format!("animation: {:?}", p1.state.borrow().anim_type), 20.0, 65.0, 20.0, DARKGRAY);
 
         // i want to see the animation frame data
@@ -265,14 +324,11 @@ async fn main() {
         draw_text(&format!("sequence frame:{:?}", p1.state.borrow().sequence_frame_index), 20.0, 115.0, 20.0, DARKGRAY);
         draw_text(&format!("sequence: {:?}", p1.state.borrow().sequence_index), 20.0, 130.0, 20.0, DARKGRAY);
 
-        let delta = p1.state.borrow_mut().update();
-        apply_deltas(&mut p1, &world, delta);
-
         next_frame().await
     }
 }
 
-fn apply_deltas(p1: &mut Player, world: &Rc<RefCell<World>>, delta: UpdateDelta) {
+fn apply_deltas(p1: &mut Player, world: &Rc<RefCell<World>>, delta: &UpdateDeltas) {
     if p1.facing == Facing::Left {
         world.borrow_mut().move_h(p1.collider, delta.pos_delta.0 * -1.0);
         if delta.vel_delta.0 != 0.0 { p1.x_v -= delta.vel_delta.0; }

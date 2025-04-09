@@ -5,5 +5,8 @@ edition = "2024"
 
 [dependencies]
 macroquad = "0.4.14"
-macroquad-platformer = "0.2.0"
+# macroquad-platformer = "0.2.0"
 macroquad-tiled = "0.2.1"
+
+macroquad-platformer = { git = "https://github.com/danwritecode/macroquad", branch = "master", package = "macroquad-platformer" }
+
