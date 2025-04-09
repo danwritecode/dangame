@@ -1,4 +1,8 @@
 [x] add a "landing" animation by splitting off the end of the jump animation
+[x] Flying kick
+
+[] build generic character system
+[] add second player
 
 [] see if we can make hitbox dynamic based on animation frames sequence
 

@@ -4,15 +4,11 @@ use macroquad::{prelude::{animation::{AnimatedSprite, Animation}, *}, window};
 use macroquad_tiled::{self as tiled, Map};
 use macroquad_platformer::*;
 
-
-
-use assets::{AnimationBank, AnimationType, PlayerAnimation, UpdateDeltas};
-
-mod assets;
+use characters::player_2::{AnimationBank, AnimationType, PlayerAnimation, UpdateDeltas};
+mod characters;
 
 const RUN_SPEED: f32 = 300.0;
 const WALK_SPEED: f32 = 150.0;
-const JUMP_SPEED: f32 = 400.0;
 const GRAVITY: f32 = 800.0;
 
 const WINDOW_HEIGHT: i32 = 832;
@@ -212,8 +208,8 @@ impl Player {
                     self.state = Rc::clone(&self.animation_bank.idle_anim);
                 },
                 AnimationType::Crouch => {
-                    self.state = Rc::clone(&self.animation_bank.crouch_anim);
-                    self.state.borrow_mut().actively_playing = true;
+                    // self.state = Rc::clone(&self.animation_bank.crouch_anim);
+                    // self.state.borrow_mut().actively_playing = true;
                 },
                 AnimationType::ForwardRun => {
                     self.state = Rc::clone(&self.animation_bank.fwd_run_anim);
@@ -236,8 +232,8 @@ impl Player {
                     self.state.borrow_mut().actively_playing = true;
                 },
                 AnimationType::Landing => {
-                    self.state = Rc::clone(&self.animation_bank.landing_anim);
-                    self.state.borrow_mut().actively_playing = true;
+                    // self.state = Rc::clone(&self.animation_bank.landing_anim);
+                    // self.state.borrow_mut().actively_playing = true;
                 },
                 AnimationType::Attack1 => {
                     self.state = Rc::clone(&self.animation_bank.attack_1_anim);
