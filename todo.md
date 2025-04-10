@@ -1,6 +1,5 @@
-[] build generic map system
-
-[] is hitting head on something detection
+[] Netcode
+[] Second player
 
 [] add various game play states and create a system to go between them (home menu, gameplay, etc)
 [] game debug window/ui to help with various state changes
@@ -13,8 +12,10 @@
 [] add damage system
 [] add a "death" animation when out of HP
 
-[] Netcode
-[] Second player
+[] is hitting head on something detection
+
+[] build generic map system
+[] generic character system refactor #2
 
 [] try to determine why jump is inconsistent
 

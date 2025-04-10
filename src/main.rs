@@ -8,10 +8,10 @@ use characters::{character_1::Character1, character_2::Character2, characters::{
 
 use constants::*;
 
+mod animations;
 mod characters;
 mod constants;
 mod types;
-
 
 
 #[macroquad::main(window_conf)]

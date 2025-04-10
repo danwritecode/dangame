@@ -4,31 +4,13 @@ use macroquad::{
     input::{is_key_down, KeyCode},
     math::{vec2, Vec2},
     texture::{load_texture, Texture2D},
-    time::get_frame_time,
 };
 use macroquad_platformer::{Actor, World};
 
-use crate::constants::*;
+use crate::{animations::{AnimationSequence, AnimationType, PlayerAnimation}, constants::*};
 use crate::types::update_delta::UpdateDeltas;
 
 use super::characters::{CharacterTrait, Facing};
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum AnimationType {
-    Idle,
-    Crouch,
-    ForwardRun,
-    ReverseRun,
-    Jump,
-    JumpMoving,
-    Landing,
-    ForwardWalk,
-    ReverseWalk,
-    Attack1,
-    Attack2,
-    Attack3,
-    SoaringKick,
-}
 
 pub struct Character2 {
     x_v: f32,
@@ -50,8 +32,8 @@ impl CharacterTrait for Character2 {
         self.actor
     }
 
-    fn get_texture(&self) -> Texture2D {
-        self.state.borrow().texture.clone() // TODO: need to fix this
+    fn get_texture(&self) -> Rc<Texture2D> {
+        Rc::clone(&self.state.borrow().texture)
     }
 
     fn get_facing(&self) -> Facing {
@@ -329,134 +311,6 @@ impl Character2 {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct PlayerAnimation {
-    pub anim_type: AnimationType,
-    pub texture: Texture2D,
-    pub time: f32,
-
-    /// Frame is the current frame of the spritesheetNOT the animation frame
-    pub sprite_frame: usize,
-
-    // Sequence is a grouping of frames and their FPS This means that the sequence will play 4 frames at 20 FPS, then 1 frame at 10 FPS, then 5 frames at 10 FPS
-    pub animation_sequence: Vec<AnimationSequence>,
-
-    /// Sequence Index is the current sequence of animations which has a number of frames and an FPS to play them at.
-    pub sequence_index: usize,
-
-    /// Sequence Frame Index is the current frame of the sequence
-    pub sequence_frame_index: usize,
-
-    pub actively_playing: bool,
-
-    /// For animations like Idle, we just want to lop them
-    pub always_plays: bool,
-
-    /// If an animation is interruptable, it means that it can be interrupted by another animation
-    pub is_interuptable: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct AnimationSequence {
-    frames: usize,
-    fps: f32,
-    x_movement: f32,
-    y_movement: f32,
-    x_accleration: f32,
-    y_accleration: f32,
-
-    /// the difference in height during an animation
-    height: i32,
-    /// the difference in width during an animation
-    width: i32,
-}
-
-impl AnimationSequence {
-    pub fn new(
-        frames: usize,
-        fps: f32,
-        x_movement: f32,
-        y_movement: f32,
-        x_accleration: f32,
-        y_accleration: f32,
-        height: i32,
-        width: i32,
-    ) -> Self {
-        Self {
-            frames,
-            fps,
-            x_movement,
-            y_movement,
-            x_accleration,
-            y_accleration,
-            height,
-            width,
-        }
-    }
-}
-
-impl PlayerAnimation {
-    pub fn update(&mut self) -> UpdateDeltas {
-        let sequence = &self.animation_sequence.get(self.sequence_index);
-        let sequence = match sequence {
-            Some(sequence) => sequence,
-            None => return UpdateDeltas::default(),
-        };
-
-        let mut delta = UpdateDeltas::default();
-        delta.height = sequence.height;
-        delta.width = sequence.width;
-
-        if self.actively_playing || self.always_plays {
-            self.time += get_frame_time();
-
-            if self.time > 1. / sequence.fps {
-                // need to process our movement deltas no matter what
-                delta.pos_delta.0 = sequence.x_movement / sequence.frames as f32;
-                delta.pos_delta.1 = sequence.y_movement / sequence.frames as f32;
-                delta.vel_delta.0 = sequence.x_accleration / sequence.frames as f32;
-                delta.vel_delta.1 = sequence.y_accleration / sequence.frames as f32;
-
-                let is_last_sequence = self.sequence_index == self.animation_sequence.len() - 1;
-                let is_last_sequence_frame = self.sequence_frame_index == sequence.frames - 1;
-
-                if !is_last_sequence_frame {
-                    self.sprite_frame += 1;
-                    self.sequence_frame_index += 1;
-                }
-
-                if is_last_sequence_frame && !is_last_sequence {
-                    self.sprite_frame += 1;
-                    self.sequence_frame_index = 0;
-                    self.sequence_index += 1;
-                }
-
-                if is_last_sequence_frame && is_last_sequence {
-                    if self.always_plays {
-                        self.sequence_index = 0;
-                        self.sequence_frame_index = 0;
-                        self.sprite_frame = 0;
-                    } else {
-                        self.actively_playing = false;
-                    }
-                }
-
-                self.time = 0.0;
-            }
-        }
-
-        delta
-    }
-
-    pub fn reset(&mut self) {
-        self.time = 0.0;
-        self.sequence_frame_index = 0;
-        self.sequence_index = 0;
-        self.sprite_frame = 0;
-        self.actively_playing = false;
-    }
-}
-
 pub struct Character1AnimationBank {
     pub idle_anim: Rc<RefCell<PlayerAnimation>>,
     pub crouch_anim: Rc<RefCell<PlayerAnimation>>,
@@ -475,15 +329,15 @@ pub struct Character1AnimationBank {
 
 impl Character1AnimationBank {
     pub async fn load() -> Self {
-        let idle_texture = load_texture("spritesheets/Shinobi/Idle.png").await.unwrap();
-        let crouch_texture = load_texture("spritesheets/Shinobi/Idle.png").await.unwrap();
-        let run_texture = load_texture("spritesheets/Shinobi/Run.png").await.unwrap();
-        let jump_texture = load_texture("spritesheets/Shinobi/Jump.png").await.unwrap();
-        let walk_texture = load_texture("spritesheets/Shinobi/Walk.png").await.unwrap();
-        let landing_texture = load_texture("spritesheets/Shinobi/Idle.png").await.unwrap();
-        let attack_1_texture = load_texture("spritesheets/Shinobi/Attack_1.png").await.unwrap();
-        let attack_2_texture = load_texture("spritesheets/Shinobi/Attack_2.png").await.unwrap();
-        let attack_3_texture = load_texture("spritesheets/Shinobi/Attack_3.png").await.unwrap();
+        let idle_texture = Rc::new(load_texture("spritesheets/Shinobi/Idle.png").await.unwrap());
+        let crouch_texture = Rc::new(load_texture("spritesheets/Shinobi/Idle.png").await.unwrap());
+        let run_texture = Rc::new(load_texture("spritesheets/Shinobi/Run.png").await.unwrap());
+        let jump_texture = Rc::new(load_texture("spritesheets/Shinobi/Jump.png").await.unwrap());
+        let walk_texture = Rc::new(load_texture("spritesheets/Shinobi/Walk.png").await.unwrap());
+        let landing_texture = Rc::new(load_texture("spritesheets/Shinobi/Idle.png").await.unwrap());
+        let attack_1_texture = Rc::new(load_texture("spritesheets/Shinobi/Attack_1.png").await.unwrap());
+        let attack_2_texture = Rc::new(load_texture("spritesheets/Shinobi/Attack_2.png").await.unwrap());
+        let attack_3_texture = Rc::new(load_texture("spritesheets/Shinobi/Attack_3.png").await.unwrap());
 
         let idle_anim = Rc::new(RefCell::new(PlayerAnimation {
             anim_type: AnimationType::Idle,
