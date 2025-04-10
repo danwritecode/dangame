@@ -7,12 +7,19 @@ use macroquad_platformer::*;
 use characters::{character_1::Character1, character_2::Character2, characters::{CharacterTrait, Facing}};
 
 use constants::*;
+use maps::map::GameMap;
 
 mod animations;
 mod characters;
 mod constants;
+mod maps;
 mod types;
+mod ui;
 
+enum GameState<'a> {
+    Menu,
+    Game(&'a GameMap),
+}
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -28,22 +35,45 @@ async fn main() {
     let mut c1 = Character1::new(600.0, 50.0, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, world.clone()).await;
     let mut c2 = Character2::new(100.0, 50.0, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, world.clone()).await;
 
+    let maps = get_maps().await;
+    let mut game_state = GameState::Menu;
+
     loop {
         let dt = get_frame_time();
-        draw_map(&tiled_map, &background);
 
-        render_character(&mut c1, dt, &Rc::clone(&world), use_hitboxes);
-        render_character(&mut c2, dt, &Rc::clone(&world), use_hitboxes);
+        match game_state {
+            GameState::Menu => {
+                clear_background(BLACK);
+
+                let callback = Rc::new(RefCell::new(|i: usize| { 
+                    let map = maps.get(i).unwrap();
+                    game_state = GameState::Game(map); 
+                }));
+
+                ui::main_menu::draw_menu(&maps, callback).await;
+            }
+            GameState::Game(map) => {
+                map.draw_map();
+                render_character(&mut c1, dt, &Rc::clone(&world), use_hitboxes);
+            }
+        }
 
         next_frame().await
     }
 }
 
-fn draw_map(tiled_map: &Map, background: &Texture2D) {
-    draw_texture(background, 0., 0., WHITE);
-    tiled_map.draw_tiles("Platforms", Rect::new(0.0, 0.0, WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32), None);
+async fn get_maps() -> Vec<GameMap> {
+    vec![
+        GameMap::new(
+            "First Map".to_owned(),
+            "spritesheets/bg_night_tokyo.png".to_owned(),
+            "tilesets/exclusion-zone-tileset/1 Tiles/Tileset.png".to_owned(),
+            "maps/map_01.json".to_owned(),
+            "Tileset.png".to_owned(),
+            "Platforms".to_owned(),
+        ).await,
+    ]
 }
-
 
 fn render_character<A: CharacterTrait>(character: &mut A, dt: f32, world: &Rc<RefCell<World>>, use_hitboxes: bool) {
     character.update(dt);
@@ -88,7 +118,6 @@ fn draw_player(
         }
     );
 }
-
 
 fn draw_debug(
     actor: Actor,
