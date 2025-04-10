@@ -1,5 +1,6 @@
-[] build generic character system
-[] add second player
+[] build generic map system
+
+[] is hitting head on something detection
 
 [] add various game play states and create a system to go between them (home menu, gameplay, etc)
 [] game debug window/ui to help with various state changes
@@ -21,3 +22,5 @@
 [x] add a "landing" animation by splitting off the end of the jump animation
 [x] Flying kick
 [x] see if we can make hitbox dynamic based on animation frames sequence
+[x] build generic character system
+[x] add second player
