@@ -2,6 +2,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use macroquad::{texture::{load_texture, Texture2D}, time::get_frame_time};
 
+use crate::types::update_delta::UpdateDeltas;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum AnimationType {
     Idle,
@@ -56,9 +58,9 @@ pub struct AnimationSequence {
     y_accleration: f32,
 
     /// the difference in height during an animation
-    h_delta: i32,
+    height: i32,
     /// the difference in width during an animation
-    w_delta: i32,
+    width: i32,
 }
 
 impl AnimationSequence {
@@ -69,8 +71,8 @@ impl AnimationSequence {
         y_movement: f32, 
         x_accleration: f32, 
         y_accleration: f32,
-        h_delta: i32,
-        w_delta: i32,
+        height: i32,
+        width: i32,
     ) -> Self {
         Self {
             frames,
@@ -79,25 +81,9 @@ impl AnimationSequence {
             y_movement,
             x_accleration,
             y_accleration,
-            h_delta,
-            w_delta,
+            height,
+            width,
         }
-    }
-}
-
-type PosDelta = (f32, f32);
-type VelDelta = (f32, f32);
-
-pub struct UpdateDeltas {
-    pub pos_delta: PosDelta,
-    pub vel_delta: VelDelta,
-    pub h_delta: i32,
-    pub w_delta: i32,
-}
-
-impl Default for UpdateDeltas {
-    fn default() -> Self {
-        Self { pos_delta: (0.0, 0.0), vel_delta: (0.0, 0.0), h_delta: 0, w_delta: 0 }
     }
 }
 
@@ -110,8 +96,8 @@ impl PlayerAnimation {
         };
 
         let mut delta = UpdateDeltas::default();
-        delta.h_delta = sequence.h_delta;
-        delta.w_delta = sequence.w_delta;
+        delta.height = sequence.height;
+        delta.width = sequence.width;
 
         if self.actively_playing || self.always_plays {
             self.time += get_frame_time();
@@ -195,7 +181,7 @@ impl AnimationBank {
             anim_type: AnimationType::Idle,
             texture: idle_texture,
             time: 0.0,
-            animation_sequence: vec![AnimationSequence::new(6, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
+            animation_sequence: vec![AnimationSequence::new(6, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
             sprite_frame: 0,
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -208,7 +194,7 @@ impl AnimationBank {
             anim_type: AnimationType::Crouch,
             texture: crouch_texture,
             time: 0.0,
-            animation_sequence: vec![AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 0.0, 30, 0)],
+            animation_sequence: vec![AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 0.0, 60, 28)],
             sprite_frame: 0,
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -222,7 +208,7 @@ impl AnimationBank {
             texture: run_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
-            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -235,7 +221,7 @@ impl AnimationBank {
             texture: run_texture,
             time: 0.0,
             sprite_frame: 0,
-            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -249,9 +235,9 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 500.0, 0, 0), 
-                AnimationSequence::new(2, 20.0, 0.0, 0.0, 0.0, 0.0, 23, 0), 
-                AnimationSequence::new(4, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 500.0, 93, 28), 
+                AnimationSequence::new(2, 20.0, 0.0, 0.0, 0.0, 0.0, 70, 28),
+                AnimationSequence::new(4, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -266,9 +252,9 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 500.0, 0, 0), 
-                AnimationSequence::new(2, 20.0, 0.0, 0.0, 0.0, 0.0, 23, 0), 
-                AnimationSequence::new(5, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 500.0, 93, 28), 
+                AnimationSequence::new(2, 20.0, 0.0, 0.0, 0.0, 0.0, 70, 28),
+                AnimationSequence::new(5, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -283,7 +269,7 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(2, 10.0, 0.0, 0.0, 0.0, 0.0, 30, 0), 
+                AnimationSequence::new(2, 10.0, 0.0, 0.0, 0.0, 0.0, 70, 28), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -297,7 +283,7 @@ impl AnimationBank {
             texture: walk_texture.clone(),
             time: 0.0,
             sprite_frame: 0,
-            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -310,7 +296,7 @@ impl AnimationBank {
             texture: walk_texture,
             time: 0.0,
             sprite_frame: 0,
-            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 0, 0)],
+            animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
             sequence_index: 0,
             sequence_frame_index: 0,
             actively_playing: false,
@@ -324,9 +310,9 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(2, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(2, 3.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -341,9 +327,9 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
-                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
+                AnimationSequence::new(1, 3.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -358,9 +344,9 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(2, 8.0, 75.0, 0.0, 0.0, 0.0, 0, 0), 
-                AnimationSequence::new(1, 8.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
-                AnimationSequence::new(1, 8.0, 50.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(2, 8.0, 75.0, 0.0, 0.0, 0.0, 93, 28), 
+                AnimationSequence::new(1, 8.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
+                AnimationSequence::new(1, 8.0, 50.0, 0.0, 0.0, 0.0, 93, 28), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,
@@ -375,8 +361,8 @@ impl AnimationBank {
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
-                AnimationSequence::new(2, 8.0, 0.0, 0.0, 1250.0, -200.0, 0, 0), 
-                AnimationSequence::new(2, 8.0, 0.0, 0.0, 0.0, 0.0, 0, 0), 
+                AnimationSequence::new(2, 8.0, 0.0, 0.0, 1250.0, -200.0, 93, 28), 
+                AnimationSequence::new(2, 8.0, 0.0, 0.0, 0.0, 0.0, 93, 28), 
             ],
             sequence_index: 0,
             sequence_frame_index: 0,

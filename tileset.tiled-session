@@ -10,12 +10,20 @@
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
+        "maps/map_01.tmx": {
+            "scale": 0.7978515625,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 621.0428396572828,
+                "y": 416.11750305997555
+            }
+        },
         "tilesets/exclusion-zone-tileset/Test.tsx": {
             "scaleInEditor": 1
         }
     },
     "last.exportedFilePath": "/Users/mbp929/documents/apps/temp/dangame/maps",
-    "last.imagePath": "/Users/mbp929/documents/apps/temp/dangame/tilesets/exclusion-zone-tileset/1 Tiles",
+    "last.imagePath": "/Users/mbp929/documents/apps/temp/dangame/tilesets/green-zone",
     "map.height": 26,
     "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
     "map.lastUsedFormat": "tmx",
@@ -27,5 +35,5 @@
         "tilesets/exclusion-zone-tileset/Test.tsx"
     ],
     "tileset.lastUsedFormat": "tsx",
-    "tileset.type": 1
+    "tileset.type": 0
 }

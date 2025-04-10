@@ -1,25 +1,18 @@
 use std::{cell::RefCell, rc::Rc};
 
-use macroquad::{prelude::{animation::{AnimatedSprite, Animation}, *}, window};
+use macroquad::prelude::*;
 use macroquad_tiled::{self as tiled, Map};
 use macroquad_platformer::*;
 
-use characters::player_2::{AnimationBank, AnimationType, PlayerAnimation, UpdateDeltas};
+use characters::player_1::{AnimationBank, AnimationType, PlayerAnimation};
+use types::update_delta::UpdateDeltas;
+
+use constants::*;
+
 mod characters;
+mod constants;
+mod types;
 
-const RUN_SPEED: f32 = 300.0;
-const WALK_SPEED: f32 = 150.0;
-const GRAVITY: f32 = 800.0;
-
-const WINDOW_HEIGHT: i32 = 832;
-const WINDOW_WIDTH: i32 = 1280;
-
-const DEFAULT_PLAYER_WIDTH: i32 = 28;
-const DEFAULT_PLAYER_HEIGHT: i32 = 93;
-
-const TILE_WIDTH: f32 = 128.0;
-const TILE_HEIGHT: f32 = 128.0;
-const SPRITE_SHEET_ROW: u32 = 0;
 
 struct Player {
     x: f32,
@@ -27,8 +20,6 @@ struct Player {
     x_v: f32,
     y_v: f32,
     facing: Facing,
-    width: i32,
-    height: i32,
     state: Rc<RefCell<PlayerAnimation>>,
     animation_bank: AnimationBank,
     collider: Actor,
@@ -58,8 +49,6 @@ impl Player {
             y,
             x_v: 0.0,
             y_v: 0.0,
-            width,
-            height,
             facing: Facing::Right,
             state,
             animation_bank,
@@ -208,8 +197,8 @@ impl Player {
                     self.state = Rc::clone(&self.animation_bank.idle_anim);
                 },
                 AnimationType::Crouch => {
-                    // self.state = Rc::clone(&self.animation_bank.crouch_anim);
-                    // self.state.borrow_mut().actively_playing = true;
+                    self.state = Rc::clone(&self.animation_bank.crouch_anim);
+                    self.state.borrow_mut().actively_playing = true;
                 },
                 AnimationType::ForwardRun => {
                     self.state = Rc::clone(&self.animation_bank.fwd_run_anim);
@@ -232,8 +221,8 @@ impl Player {
                     self.state.borrow_mut().actively_playing = true;
                 },
                 AnimationType::Landing => {
-                    // self.state = Rc::clone(&self.animation_bank.landing_anim);
-                    // self.state.borrow_mut().actively_playing = true;
+                    self.state = Rc::clone(&self.animation_bank.landing_anim);
+                    self.state.borrow_mut().actively_playing = true;
                 },
                 AnimationType::Attack1 => {
                     self.state = Rc::clone(&self.animation_bank.attack_1_anim);
@@ -283,18 +272,11 @@ async fn main() {
         let delta = p1.state.borrow_mut().update();
         apply_deltas(&mut p1, &world, &delta);
 
-        // world.borrow_mut().move_v(p1.collider, delta.pos_delta.1);
-        // world.borrow_mut().set_actor_size(p1.collider, DEFAULT_PLAYER_WIDTH - delta.w_delta,  DEFAULT_PLAYER_HEIGHT - delta.h_delta);
-
-        draw_rectangle_lines(player_pos.x, player_pos.y, player_size.0 as f32,  player_size.1 as f32, 4.0, RED);
-
-        println!("player pos after updates: {:?}", player_pos);
-
         // player gets drawn here
         draw_texture_ex(
             &p1.state.borrow().texture,
-            player_pos.x - player_size.0 as f32 - 22.0,
-            player_pos.y - 35.0,
+            player_pos.x - (SPRITE_WIDTH / 2.0) + (player_size.0 as f32 / 2.0),
+            player_pos.y - (SPRITE_HEIGHT - player_size.1 as f32),
             WHITE,
             DrawTextureParams {
                 source: Some(Rect::new(
@@ -308,6 +290,8 @@ async fn main() {
                 ..Default::default()
             }
         );
+
+        draw_rectangle_lines(player_pos.x, player_pos.y, player_size.0 as f32,  player_size.1 as f32, 4.0, RED);
 
         // draw some debugging text with player velocity
         draw_text(&format!("FPS: {}", get_fps()), 20.0, 20.0, 20.0, DARKGRAY);
@@ -335,6 +319,9 @@ fn apply_deltas(p1: &mut Player, world: &Rc<RefCell<World>>, delta: &UpdateDelta
 
     world.borrow_mut().move_v(p1.collider, delta.pos_delta.1);
     if delta.vel_delta.1 != 0.0 { p1.y_v += delta.vel_delta.1; }
+
+    // set actor size
+    world.borrow_mut().set_actor_size(p1.collider, delta.width, delta.height);
 }
 
 async fn load_map() -> Map {

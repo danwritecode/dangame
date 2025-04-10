@@ -148,6 +148,18 @@ checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
 [[package]]
 name = "macroquad"
 version = "0.4.14"
+dependencies = [
+ "fontdue",
+ "glam",
+ "image",
+ "macroquad_macro 0.1.8",
+ "miniquad",
+ "quad-rand",
+]
+
+[[package]]
+name = "macroquad"
+version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2befbae373456143ef55aa93a73594d080adfb111dc32ec96a1123a3e4ff4ae"
 dependencies = [
@@ -160,24 +172,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "macroquad"
-version = "0.4.14"
-source = "git+https://github.com/danwritecode/macroquad?branch=master#ffa7bcda234b6009a7b2514879cca8393d141587"
-dependencies = [
- "fontdue",
- "glam",
- "image",
- "macroquad_macro 0.1.8 (git+https://github.com/danwritecode/macroquad?branch=master)",
- "miniquad",
- "quad-rand",
-]
-
-[[package]]
 name = "macroquad-platformer"
 version = "0.2.0"
-source = "git+https://github.com/danwritecode/macroquad?branch=master#ffa7bcda234b6009a7b2514879cca8393d141587"
 dependencies = [
- "macroquad 0.4.14 (git+https://github.com/danwritecode/macroquad?branch=master)",
+ "macroquad 0.4.14",
 ]
 
 [[package]]
@@ -193,13 +191,12 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64b1d96218903768c1ce078b657c0d5965465c95a60d2682fd97443c9d2483dd"
 
 [[package]]
 name = "macroquad_macro"
 version = "0.1.8"
-source = "git+https://github.com/danwritecode/macroquad?branch=master#ffa7bcda234b6009a7b2514879cca8393d141587"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64b1d96218903768c1ce078b657c0d5965465c95a60d2682fd97443c9d2483dd"
 
 [[package]]
 name = "malloc_buf"

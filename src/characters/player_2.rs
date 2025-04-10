@@ -2,6 +2,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use macroquad::{texture::{load_texture, Texture2D}, time::get_frame_time};
 
+use crate::types::update_delta::UpdateDeltas;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum AnimationType {
     Idle,
@@ -85,22 +87,6 @@ impl AnimationSequence {
     }
 }
 
-type PosDelta = (f32, f32);
-type VelDelta = (f32, f32);
-
-pub struct UpdateDeltas {
-    pub pos_delta: PosDelta,
-    pub vel_delta: VelDelta,
-    pub h_delta: i32,
-    pub w_delta: i32,
-}
-
-impl Default for UpdateDeltas {
-    fn default() -> Self {
-        Self { pos_delta: (0.0, 0.0), vel_delta: (0.0, 0.0), h_delta: 0, w_delta: 0 }
-    }
-}
-
 impl PlayerAnimation {
     pub fn update(&mut self) -> UpdateDeltas {
         let sequence = &self.animation_sequence.get(self.sequence_index); 
@@ -110,8 +96,8 @@ impl PlayerAnimation {
         };
 
         let mut delta = UpdateDeltas::default();
-        delta.h_delta = sequence.h_delta;
-        delta.w_delta = sequence.w_delta;
+        delta.height = sequence.h_delta;
+        delta.width = sequence.w_delta;
 
         if self.actively_playing || self.always_plays {
             self.time += get_frame_time();

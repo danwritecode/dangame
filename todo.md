@@ -1,10 +1,5 @@
-[x] add a "landing" animation by splitting off the end of the jump animation
-[x] Flying kick
-
 [] build generic character system
 [] add second player
-
-[] see if we can make hitbox dynamic based on animation frames sequence
 
 [] add various game play states and create a system to go between them (home menu, gameplay, etc)
 [] game debug window/ui to help with various state changes
@@ -21,3 +16,8 @@
 [] Second player
 
 [] try to determine why jump is inconsistent
+
+
+[x] add a "landing" animation by splitting off the end of the jump animation
+[x] Flying kick
+[x] see if we can make hitbox dynamic based on animation frames sequence
