@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bincode = { workspace = true }
+common = { path = "../common" }
 renet = { workspace = true }
 renet_netcode = { workspace = true }
-
-common = { path = "../common" }

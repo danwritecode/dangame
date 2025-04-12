@@ -7,10 +7,12 @@ members = [
 ]
 
 [workspace.dependencies]
+bincode = "2.0.1"
 macroquad = "0.4.14"
 macroquad-tiled = "0.2.1"
 # macroquad-platformer = "0.2.0"
-macroquad-platformer = { path = "../macroquad/physics-platformer/" }
+# macroquad-platformer = { path = "../macroquad/physics-platformer/" }
+macroquad-platformer = { git = "https://github.com/not-fl3/macroquad", branch = "master", package = "macroquad-platformer" }
 
 renet = "1.0.0"
 renet_netcode = "1.0.0"

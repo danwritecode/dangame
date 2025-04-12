@@ -1,4 +1,6 @@
 use crate::character::CharacterTrait;
+use bincode::{config, Decode, Encode};
+
 
 type PosDelta = (f32, f32);
 type VelDelta = (f32, f32);

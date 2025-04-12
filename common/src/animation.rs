@@ -21,7 +21,6 @@ pub enum AnimationType {
 }
 
 
-#[derive(Clone, Debug)]
 pub struct PlayerAnimation {
     pub anim_type: AnimationType,
     pub texture: Rc<Texture2D>,
