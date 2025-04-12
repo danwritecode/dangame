@@ -1,0 +1,10 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+renet = { workspace = true }
+renet_netcode = { workspace = true }
+
+common = { path = "../common" }

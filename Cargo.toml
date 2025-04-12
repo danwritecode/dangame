@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = [ 
+  "common",
+  "game", 
+  "server",
+]
+
+[workspace.dependencies]
+macroquad = "0.4.14"
+macroquad-tiled = "0.2.1"
+# macroquad-platformer = "0.2.0"
+macroquad-platformer = { path = "../macroquad/physics-platformer/" }
+
+renet = "1.0.0"
+renet_netcode = "1.0.0"
