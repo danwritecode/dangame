@@ -1,7 +1,6 @@
 use std::{cell::RefCell, rc::Rc, vec};
 
-use characters::{character_1::Character1, character_2::Character2};
-use common::character::{CharacterTrait, Facing};
+use characters::{animation::CharacterTextures, character::{CharacterTrait, Facing}, character_1::Character1, character_2::Character2};
 use macroquad::prelude::*;
 use macroquad_tiled::{self as tiled, Map};
 use macroquad_platformer::*;
@@ -37,14 +36,17 @@ enum GameState<'a> {
     Game(&'a GameMap),
 }
 
+
 #[macroquad::main(window_conf)]
 async fn main() {
     let use_hitboxes = true;
 
-    // let server_addr: SocketAddr = "127.0.0.1:5000".parse().unwrap();
+    // let server_addr: SocketAddr = "34.234.74.134:5000".parse().unwrap();
     // client(server_addr);
 
-    let splash_background = load_texture("spritesheets/splash.png").await.unwrap();
+    let character_textures = Rc::new(CharacterTextures::load_all().await);
+
+    let splash_background = load_texture("assets/spritesheets/splash.png").await.unwrap();
     let tiled_map = load_map().await;
     let static_colliders = load_static_colliders(&tiled_map).await;
 
@@ -88,7 +90,7 @@ async fn main() {
             GameState::Game(map) => {
                 map.draw_map();
                 for character in characters.iter_mut() {
-                    render_character(character.as_mut(), dt, &world, use_hitboxes);
+                    render_character(character.as_mut(), dt, &world, &character_textures, use_hitboxes);
                 }
                 
                 // Display multiplayer indicator if we're in multiplayer mode
@@ -133,9 +135,9 @@ async fn get_maps() -> Vec<GameMap> {
     vec![
         GameMap::new(
             "First Map".to_owned(),
-            "spritesheets/bg_night_tokyo.png".to_owned(),
-            "tilesets/exclusion-zone-tileset/1 Tiles/Tileset.png".to_owned(),
-            "maps/map_01.json".to_owned(),
+            "assets/spritesheets/bg_night_tokyo.png".to_owned(),
+            "assets/maps/tilesets/exclusion-zone-tileset/1 Tiles/Tileset.png".to_owned(),
+            "assets/maps/map_01.json".to_owned(),
             "Tileset.png".to_owned(),
             vec!["Platforms".to_owned()],
         ).await,
@@ -144,12 +146,13 @@ async fn get_maps() -> Vec<GameMap> {
 
 fn render_character(
     character: &mut dyn CharacterTrait, 
-    dt: f32, world: 
-    &Rc<RefCell<World>>, 
+    dt: f32, 
+    world: &Rc<RefCell<World>>, 
+    textures: &Rc<CharacterTextures>,
     use_hitboxes: bool
 ) {
     character.update(dt);
-    let texture = character.get_texture();
+    let texture = character.get_texture(textures);
     let actor = character.get_actor();
     let facing = character.get_facing();
     let sprite_frame = character.get_sprite_frame();
@@ -212,10 +215,10 @@ fn draw_debug(
 }
 
 async fn load_map() -> Map {
-    let tileset = load_texture("tilesets/exclusion-zone-tileset/1 Tiles/Tileset.png").await.unwrap();
+    let tileset = load_texture("assets/maps/tilesets/exclusion-zone-tileset/1 Tiles/Tileset.png").await.unwrap();
     tileset.set_filter(FilterMode::Nearest);
 
-    let tiled_map_json = load_string("maps/map_01.json").await.unwrap();
+    let tiled_map_json = load_string("assets/maps/map_01.json").await.unwrap();
     tiled::load_map(
         &tiled_map_json,
         &[("Tileset.png", tileset)],
@@ -252,8 +255,8 @@ fn client(server_addr: SocketAddr) {
 
     let connection_config = ConnectionConfig::default();
     let mut client = RenetClient::new(connection_config);
+    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
 
-    let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     let client_id = current_time.as_millis() as u64;
 

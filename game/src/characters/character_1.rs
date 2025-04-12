@@ -1,22 +1,31 @@
 use std::{cell::RefCell, rc::Rc};
 
-use common::{animation::{AnimationSequence, AnimationType, PlayerAnimation}, character::{CharacterTrait, Facing, GenericCharacterState}, types::UpdateDeltas};
 use macroquad::{
-    input::{is_key_down, KeyCode},
-    math::{vec2, Vec2},
-    texture::{load_texture, Texture2D},
+    input::{KeyCode, is_key_down},
+    math::{Vec2, vec2},
+    texture::Texture2D,
 };
 use macroquad_platformer::{Actor, World};
 
-use crate::constants::*;
+use crate::{constants::*, types::animation_deltas::UpdateDeltas};
 
+use super::{
+    animation::{
+        AnimationSequence, AnimationType, CharacterTextures, CharacterType, PlayerAnimationState,
+    },
+    character::{
+        CharacterTrait, 
+        Facing, 
+        GenericCharacterState
+    },
+};
 
 pub struct Character1 {
     x_v: f32,
     y_v: f32,
     facing: Facing,
     animation_bank: Character1AnimationBank,
-    state: Rc<RefCell<PlayerAnimation>>,
+    state: Rc<RefCell<PlayerAnimationState>>,
     actor: Actor,
     world: Rc<RefCell<World>>,
 }
@@ -31,8 +40,12 @@ impl CharacterTrait for Character1 {
         self.actor
     }
 
-    fn get_texture(&self) -> Rc<Texture2D> {
-        Rc::clone(&self.state.borrow().texture)
+    fn get_texture(&self, textures: &Rc<CharacterTextures>) -> Rc<Texture2D> {
+        let texture = textures.get_texture(
+            &self.state.borrow().character_type,
+            &self.state.borrow().anim_type,
+        );
+        Rc::clone(&texture)
     }
 
     fn get_facing(&self) -> Facing {
@@ -313,41 +326,33 @@ impl Character1 {
         }
 
         // set actor size
-        world.borrow_mut().set_actor_size(self.actor, delta.width, delta.height);
+        world
+            .borrow_mut()
+            .set_actor_size(self.actor, delta.width, delta.height);
     }
 }
 
 pub struct Character1AnimationBank {
-    pub idle_anim: Rc<RefCell<PlayerAnimation>>,
-    pub crouch_anim: Rc<RefCell<PlayerAnimation>>,
-    pub fwd_run_anim: Rc<RefCell<PlayerAnimation>>,
-    pub rev_run_anim: Rc<RefCell<PlayerAnimation>>,
-    pub jump_anim: Rc<RefCell<PlayerAnimation>>,
-    pub jump_anim_moving: Rc<RefCell<PlayerAnimation>>,
-    pub landing_anim: Rc<RefCell<PlayerAnimation>>,
-    pub fwd_walk_anim: Rc<RefCell<PlayerAnimation>>,
-    pub rev_walk_anim: Rc<RefCell<PlayerAnimation>>,
-    pub attack_1_anim: Rc<RefCell<PlayerAnimation>>,
-    pub attack_2_anim: Rc<RefCell<PlayerAnimation>>,
-    pub attack_3_anim: Rc<RefCell<PlayerAnimation>>,
-    pub soaring_kick_anim: Rc<RefCell<PlayerAnimation>>,
+    pub idle_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub crouch_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub fwd_run_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub rev_run_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub jump_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub jump_anim_moving: Rc<RefCell<PlayerAnimationState>>,
+    pub landing_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub fwd_walk_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub rev_walk_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub attack_1_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub attack_2_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub attack_3_anim: Rc<RefCell<PlayerAnimationState>>,
+    pub soaring_kick_anim: Rc<RefCell<PlayerAnimationState>>,
 }
 
 impl Character1AnimationBank {
     pub async fn load() -> Self {
-        let idle_texture = Rc::new(load_texture("spritesheets/Fighter/Idle.png").await.unwrap());
-        let crouch_texture = Rc::new(load_texture("spritesheets/Fighter/Crouch.png").await.unwrap());
-        let run_texture = Rc::new(load_texture("spritesheets/Fighter/Run.png").await.unwrap());
-        let jump_texture = Rc::new(load_texture("spritesheets/Fighter/Jump_02.png").await.unwrap());
-        let walk_texture = Rc::new(load_texture("spritesheets/Fighter/Walk.png").await.unwrap());
-        let landing_texture = Rc::new(load_texture("spritesheets/Fighter/Landing.png").await.unwrap());
-        let attack_1_texture = Rc::new(load_texture("spritesheets/Fighter/Attack_1.png").await.unwrap());
-        let attack_2_texture = Rc::new(load_texture("spritesheets/Fighter/Attack_2.png").await.unwrap());
-        let attack_3_texture = Rc::new(load_texture("spritesheets/Fighter/Attack_3.png").await.unwrap());
-
-        let idle_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let idle_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::Idle,
-            texture: idle_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             animation_sequence: vec![AnimationSequence::new(6, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
             sprite_frame: 0,
@@ -358,9 +363,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let crouch_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let crouch_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::Crouch,
-            texture: crouch_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             animation_sequence: vec![AnimationSequence::new(1, 20.0, 0.0, 0.0, 0.0, 0.0, 60, 28)],
             sprite_frame: 0,
@@ -371,9 +376,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let fwd_run_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let fwd_run_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::ForwardRun,
-            texture: run_texture.clone(),
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
@@ -384,9 +389,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let rev_run_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let rev_run_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::ReverseRun,
-            texture: run_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
@@ -397,9 +402,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let jump_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let jump_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::Jump,
-            texture: jump_texture.clone(),
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
@@ -414,9 +419,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let jump_anim_moving = Rc::new(RefCell::new(PlayerAnimation {
+        let jump_anim_moving = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::JumpMoving,
-            texture: jump_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
@@ -431,9 +436,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let landing_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let landing_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::Landing,
-            texture: landing_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![AnimationSequence::new(2, 10.0, 0.0, 0.0, 0.0, 0.0, 70, 28)],
@@ -444,9 +449,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let fwd_walk_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let fwd_walk_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::ForwardWalk,
-            texture: walk_texture.clone(),
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
@@ -457,9 +462,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let rev_walk_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let rev_walk_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::ReverseWalk,
-            texture: walk_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![AnimationSequence::new(8, 20.0, 0.0, 0.0, 0.0, 0.0, 93, 28)],
@@ -470,9 +475,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let attack_1_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let attack_1_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::Attack1,
-            texture: attack_1_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
@@ -487,9 +492,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let attack_2_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let attack_2_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::Attack2,
-            texture: attack_2_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
@@ -504,9 +509,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let attack_3_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let attack_3_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::Attack3,
-            texture: attack_3_texture.clone(),
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
@@ -521,9 +526,9 @@ impl Character1AnimationBank {
             is_interuptable: true,
         }));
 
-        let soaring_kick_anim = Rc::new(RefCell::new(PlayerAnimation {
+        let soaring_kick_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::SoaringKick,
-            texture: attack_3_texture,
+            character_type: CharacterType::Fighter,
             time: 0.0,
             sprite_frame: 0,
             animation_sequence: vec![
