@@ -7,18 +7,13 @@ use macroquad::{
 };
 use macroquad_platformer::{Actor, World};
 
-use crate::{constants::*, types::animation_deltas::UpdateDeltas};
+use crate::constants::*;
+use common::{animation_deltas::UpdateDeltas, types::ClientState};
 
-use super::{
-    animation::{
-        AnimationSequence, AnimationType, CharacterTextures, CharacterType, PlayerAnimationState,
-    },
-    character::{
-        CharacterTrait, 
-        Facing, 
-        GenericCharacterState
-    },
+use common::animation::{
+        AnimationSequence, AnimationType, CharacterTextures, CharacterType, PlayerAnimationState, Facing
 };
+use super::character::CharacterTrait;
 
 pub struct Character1 {
     x_v: f32,
@@ -60,13 +55,17 @@ impl CharacterTrait for Character1 {
         Vec2::new(self.x_v, self.y_v)
     }
 
-    fn get_generic_state(&self) -> GenericCharacterState {
-        GenericCharacterState {
-            x_v: self.x_v,
-            y_v: self.y_v,
-            facing: self.facing.clone(),
-            state: Rc::clone(&self.state),
-        }
+    fn get_client_state(&self) -> ClientState {
+        ClientState::new(
+            self.x_v,
+            self.y_v,
+            self.facing.clone(),
+            self.state.borrow().anim_type.clone(),
+            self.state.borrow().character_type.clone(),
+            self.state.borrow().sprite_frame,
+            self.state.borrow().sequence_index,
+            self.state.borrow().sequence_frame_index,
+        )
     }
 }
 

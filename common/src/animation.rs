@@ -1,11 +1,18 @@
 use std::rc::Rc;
+use bincode::{Decode, Encode};
 
 use macroquad::time::get_frame_time;
 use macroquad::texture::{load_texture, Texture2D};
 
-use crate::types::animation_deltas::UpdateDeltas;
+use crate::animation_deltas::UpdateDeltas;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+pub enum Facing {
+    Left,
+    Right,
+}
+
+#[derive(Encode, Decode, Clone, Debug, PartialEq)]
 pub enum AnimationType {
     Idle,
     Crouch,
@@ -22,7 +29,7 @@ pub enum AnimationType {
     SoaringKick,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Encode, Decode, Clone, Debug, PartialEq)]
 pub enum CharacterType {
     Fighter,
     Shinobi,

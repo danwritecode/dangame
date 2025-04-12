@@ -1,6 +1,8 @@
 use std::{cell::RefCell, rc::Rc, vec};
 
-use characters::{animation::CharacterTextures, character::{CharacterTrait, Facing}, character_1::Character1, character_2::Character2};
+use characters::{character::CharacterTrait, character_1::Character1, character_2::Character2};
+use common::animation::{CharacterTextures, Facing};
+
 use macroquad::prelude::*;
 use macroquad_tiled::{self as tiled, Map};
 use macroquad_platformer::*;
@@ -115,16 +117,15 @@ async fn add_character(
 ) {
     match character_selection {
         CharacterSelection::Character1 => {
-            let character = Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, world.clone()).await;
+            let character = Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await;
             characters.push(Box::new(character));
         },
         CharacterSelection::Character2 => {
-            let character = Character2::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, world.clone()).await;
+            let character = Character2::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await;
             characters.push(Box::new(character));
         },
         CharacterSelection::Character3 => {
-            // Placeholder for Character3 - using Character1 for now
-            let character = Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, world.clone()).await;
+            let character = Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await;
             characters.push(Box::new(character));
         },
     }
@@ -192,26 +193,6 @@ fn draw_player(
             ..Default::default()
         }
     );
-}
-
-fn draw_debug(
-    actor: Actor,
-    world: &Rc<RefCell<World>>,
-    x_v: f32,
-    y_v: f32,
-    use_debug: bool
-) {
-    if use_debug {
-        let player_pos = world.borrow_mut().actor_pos(actor);
-        let player_size = world.borrow_mut().actor_size(actor);
-
-        draw_text(&format!("FPS: {}", get_fps()), 20.0, 20.0, 20.0, DARKGRAY);
-        draw_text(&format!("vx: {} | vy: {}", x_v, y_v), 20.0, 35.0, 20.0, DARKGRAY);
-        draw_text(&format!("x: {} | y: {}", player_pos.x, player_pos.y), 20.0, 50.0, 20.0, DARKGRAY);
-
-        // player size
-        draw_text(&format!("width: {} | height: {}", player_size.0, player_size.1), 20.0, 65.0, 20.0, DARKGRAY);
-    }
 }
 
 async fn load_map() -> Map {

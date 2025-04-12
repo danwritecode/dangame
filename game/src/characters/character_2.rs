@@ -6,21 +6,13 @@ use macroquad::{
 use macroquad_platformer::{Actor, World};
 use std::{cell::RefCell, rc::Rc};
 
-use super::{
-    animation::{
-        AnimationSequence, AnimationType, CharacterTextures, CharacterType, PlayerAnimationState,
-    },
-    character::{
-        CharacterTrait, 
-        Facing, 
-        GenericCharacterState
-    },
-};
+use crate::constants::*;
+use common::{animation_deltas::UpdateDeltas, types::ClientState};
 
-use crate::{
-    constants::*, 
-    types::animation_deltas::UpdateDeltas
+use common::animation::{
+        AnimationSequence, AnimationType, CharacterTextures, CharacterType, PlayerAnimationState, Facing
 };
+use super::character::CharacterTrait;
 
 pub struct Character2 {
     x_v: f32,
@@ -61,13 +53,18 @@ impl CharacterTrait for Character2 {
     fn get_velocity(&self) -> Vec2 {
         Vec2::new(self.x_v, self.y_v)
     }
-    fn get_generic_state(&self) -> GenericCharacterState {
-        GenericCharacterState {
-            x_v: self.x_v,
-            y_v: self.y_v,
-            facing: self.facing.clone(),
-            state: Rc::clone(&self.state),
-        }
+
+    fn get_client_state(&self) -> ClientState {
+        ClientState::new(
+            self.x_v,
+            self.y_v,
+            self.facing.clone(),
+            self.state.borrow().anim_type.clone(),
+            self.state.borrow().character_type.clone(),
+            self.state.borrow().sprite_frame,
+            self.state.borrow().sequence_index,
+            self.state.borrow().sequence_frame_index,
+        )
     }
 }
 
