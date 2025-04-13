@@ -6,8 +6,8 @@ use macroquad_platformer::{Actor, World};
 
 
 pub struct ServerCharacter {
-    pub x_v: f32,
-    pub y_v: f32,
+    pub x_pos: f32,
+    pub y_pos: f32,
     pub facing: Facing,
     pub anim_type: AnimationType,
     pub character_type: CharacterType,
@@ -18,10 +18,11 @@ pub struct ServerCharacter {
 
 impl ServerCharacter {
     pub async fn new(
-        x: f32, 
-        y: f32, 
+        x_pos: f32, 
+        y_pos: f32, 
         width: i32, 
         height: i32, 
+        facing: Facing,
         anim_type: AnimationType,
         character_type: CharacterType,
         sprite_frame: usize,
@@ -29,18 +30,23 @@ impl ServerCharacter {
     ) -> Self {
         let actor = world
             .borrow_mut()
-            .add_actor(vec2(x, y), width as i32, height as i32);
+            .add_actor(vec2(x_pos, y_pos), width as i32, height as i32);
 
         Self {
-            x_v: 0.0,
-            y_v: 0.0,
-            facing: Facing::Right,
+            x_pos,
+            y_pos,
+            facing,
             anim_type,
             character_type,
             sprite_frame,
             actor,
             world,
         }
+    }
+
+    pub fn update(&mut self) {
+        let pos = vec2(self.x_pos, self.y_pos);
+        self.world.borrow_mut().set_actor_position(self.actor, pos);
     }
 
     pub fn get_texture(&self, textures: &Rc<CharacterTextures>) -> Rc<Texture2D> {

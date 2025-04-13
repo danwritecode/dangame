@@ -1,7 +1,5 @@
 [] Remove animation bank
-[] Netcode
-[] Second remote player
-
+[] Refactor netcode to use separate thread
 
 
 [] build generic map system
@@ -31,3 +29,5 @@
 [x] see if we can make hitbox dynamic based on animation frames sequence
 [x] build generic character system
 [x] add second player
+[x] Netcode
+[x] Second remote player

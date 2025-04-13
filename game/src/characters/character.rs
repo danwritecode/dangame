@@ -19,7 +19,7 @@ pub trait CharacterTrait {
     fn get_velocity(&self) -> Vec2;
 }
 
-pub async fn into_client_server_event(character: Box<dyn CharacterTrait>) -> ClientServerEvent {
+pub async fn into_client_server_event(username: &str, character: &Box<dyn CharacterTrait>) -> ClientServerEvent {
     let pos = character.get_position();
     // let size = character.get_size();
 
@@ -30,7 +30,7 @@ pub async fn into_client_server_event(character: Box<dyn CharacterTrait>) -> Cli
     let sprite_frame = character.get_sprite_frame();
 
     ClientServerEvent {
-        username: String::new(),
+        username: username.to_string(),
         x_pos,
         y_pos,
         facing: character.get_facing(),

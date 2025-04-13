@@ -241,9 +241,7 @@ impl Character1 {
         }
 
         self.world.borrow_mut().move_h(self.actor, self.x_v * dt);
-        self.world
-            .borrow_mut()
-            .move_v(self.actor, (self.y_v * -1.0) * dt);
+        self.world.borrow_mut().move_v(self.actor, (self.y_v * -1.0) * dt);
 
         if next_animation_state != self.state.borrow().anim_type && !is_actively_playing {
             // we decided above if we want to change animations or not

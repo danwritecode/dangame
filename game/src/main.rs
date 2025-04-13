@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc, vec};
 
-use characters::{character::CharacterTrait, character_1::Character1, character_2::Character2, server_character::ServerCharacter};
+use characters::{character::{into_client_server_event, CharacterTrait}, character_1::Character1, character_2::Character2, server_character::ServerCharacter};
 use common::{animation::{CharacterTextures, Facing}, types::{ClientEventType, ClientServerEvent, UserNameText}};
 
 use macroquad::prelude::*;
@@ -11,9 +11,7 @@ use macroquad_platformer::*;
 // renet stuff
 use std::{
     net::{SocketAddr, UdpSocket},
-    sync::mpsc::{self, Receiver, TryRecvError},
-    thread,
-    time::{Duration, Instant, SystemTime},
+    time::{Instant, SystemTime},
 };
 
 use renet::{ConnectionConfig, DefaultChannel, RenetClient};
@@ -38,7 +36,9 @@ enum GameState<'a> {
     Game(&'a GameMap),
 }
 
-const USE_HITBOXES: bool = true;
+const USE_HITBOXES: bool = false;
+const UDP_SERVER_ADDR: &str = "44.223.0.79:5000";
+// const UDP_SERVER_ADDR: &str = "127.0.0.1:5000";
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -110,11 +110,6 @@ async fn main() {
             GameState::Game(map) => {
                 map.draw_map();
 
-                // draw the other characters
-                for (k, character) in other_characters.iter_mut() {
-                    // render_character(character.as_mut(), &world, &character_textures, use_hitboxes);
-                }
-
                 // draw AND update my character
                 render_update_my_character(my_character.as_mut(), dt, &world, &character_textures);
                 
@@ -127,7 +122,17 @@ async fn main() {
                         last_updated.as_mut(),
                     ) {
                         (Some(client), Some(transport), Some(last_updated)) => {
-                            handle_client_updates(client, config, transport, last_updated, &username);
+                            handle_client_updates(
+                                client, 
+                                config, 
+                                transport, 
+                                last_updated, 
+                                &username, 
+                                &my_character, 
+                                &mut other_characters, 
+                                &world, 
+                                &character_textures
+                            ).await;
                         }
                         _ => (),
                     }
@@ -264,7 +269,8 @@ async fn handle_client_updates(
     bincode_config: bincode::config::Configuration,
     transport: &mut NetcodeClientTransport,
     last_updated: &mut Instant,
-    client_username: &str,
+    my_username: &str,
+    my_character: &Box<dyn CharacterTrait>,
     characters: &mut HashMap<UserNameText, ServerCharacter>,
     world: &Rc<RefCell<World>>,
     textures: &Rc<CharacterTextures>,
@@ -279,21 +285,17 @@ async fn handle_client_updates(
     if client.is_connected() {
 
         // this is where we send the updated client info
-        // let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states.clone());
-        // let encoded_client_mapping_event = bincode::encode_to_vec(&client_mapping_event, config).unwrap();
-        // client.send_message(DefaultChannel::ReliableOrdered, text.as_bytes().to_vec());
-
+        let client_server_event = into_client_server_event(my_username, my_character).await;
+        let encoded_client_server_event = bincode::encode_to_vec(&client_server_event, bincode_config).unwrap();
+        client.send_message(DefaultChannel::ReliableOrdered, encoded_client_server_event);
 
         while let Some(message) = client.receive_message(DefaultChannel::ReliableOrdered) {
             let (client_event_type, _len): (ClientEventType, usize) = bincode::decode_from_slice(&message[..], bincode_config).unwrap();
 
             match client_event_type {
                 ClientEventType::ClientCharacterUpdate(message) => {
-                    println!("Client Character Update");
-                    // let character = Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await;
-
                     for (username, client_server_event) in message { 
-                        if username == client_username { continue; } // skip our own character
+                        if username == my_username { continue; } // skip our own character
 
                         let x_pos = client_server_event.x_pos;
                         let y_pos = client_server_event.y_pos;
@@ -301,15 +303,16 @@ async fn handle_client_updates(
                         // update character or insert it
                         let character = characters.entry(username)
                             .and_modify(|v| {
-                                v.x_v = x_pos;
-                                v.y_v = y_pos;
+                                v.x_pos = x_pos;
+                                v.y_pos = y_pos;
                                 v.anim_type = client_server_event.anim_type.clone();
                                 v.character_type = client_server_event.character_type.clone();
                                 v.sprite_frame = client_server_event.sprite_frame;
+                                v.facing = client_server_event.facing.clone();
                             })
                             .or_insert(ServerCharacter::new(
                                 x_pos, y_pos, 
-                                DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, 
+                                DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, client_server_event.facing,
                                 client_server_event.anim_type.clone(), 
                                 client_server_event.character_type.clone(), 
                                 client_server_event.sprite_frame, 
@@ -321,6 +324,7 @@ async fn handle_client_updates(
                         let facing = character.get_facing();
                         let sprite_frame = character.get_sprite_frame();
 
+                        character.update();
                         draw_player(&texture, &Rc::clone(&world), actor, facing, sprite_frame, USE_HITBOXES);
                     }
                 }
@@ -340,7 +344,9 @@ struct ServerConnectionResponse {
 
 async fn connect_to_server(username: &str) -> ServerConnectionResponse {
     const PROTOCOL_ID: u64 = 7;
-    let server_addr: SocketAddr = "34.234.74.134:5000".parse().unwrap();
+    let server_addr: SocketAddr = UDP_SERVER_ADDR.parse().unwrap();
+
+    println!("attempting to connect to server at {UDP_SERVER_ADDR}");
 
     let connection_config = ConnectionConfig::default();
     let client = RenetClient::new(connection_config);
