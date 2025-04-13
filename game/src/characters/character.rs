@@ -3,7 +3,7 @@ use std::rc::Rc;
 use macroquad::{math::Vec2, texture::Texture2D};
 use macroquad_platformer::Actor;
 
-use common::{animation::{AnimationType, CharacterTextures, CharacterType, Facing}, types::ClientServerEvent};
+use common::{animation::{AnimationType, CharacterTextures, CharacterType, Facing}, types::ServerClient};
 
 
 pub trait CharacterTrait {
@@ -19,7 +19,7 @@ pub trait CharacterTrait {
     fn get_velocity(&self) -> Vec2;
 }
 
-pub async fn into_client_server_event(username: &str, character: &Box<dyn CharacterTrait>) -> ClientServerEvent {
+pub async fn into_client_server_event(character: &Box<dyn CharacterTrait>) -> ServerClient {
     let pos = character.get_position();
     // let size = character.get_size();
 
@@ -29,8 +29,7 @@ pub async fn into_client_server_event(username: &str, character: &Box<dyn Charac
     let character_type = character.get_character_type();
     let sprite_frame = character.get_sprite_frame();
 
-    ClientServerEvent {
-        username: username.to_string(),
+    ServerClient {
         x_pos,
         y_pos,
         facing: character.get_facing(),

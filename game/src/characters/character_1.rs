@@ -19,7 +19,7 @@ pub struct Character1 {
     x_v: f32,
     y_v: f32,
     facing: Facing,
-    animation_bank: Character1AnimationBank,
+    animations: Character1Animations,
     state: Rc<RefCell<PlayerAnimationState>>,
     actor: Actor,
     world: Rc<RefCell<World>>,
@@ -76,7 +76,7 @@ impl CharacterTrait for Character1 {
 
 impl Character1 {
     pub async fn new(x: f32, y: f32, width: i32, height: i32, world: Rc<RefCell<World>>) -> Self {
-        let animation_bank = Character1AnimationBank::load().await;
+        let animation_bank = Character1Animations::load().await;
         let state = animation_bank.idle_anim.clone();
         let collider = world
             .borrow_mut()
@@ -87,7 +87,7 @@ impl Character1 {
             y_v: 0.0,
             facing: Facing::Right,
             state,
-            animation_bank,
+            animations: animation_bank,
             actor: collider,
             world,
         }
@@ -250,50 +250,50 @@ impl Character1 {
 
             match next_animation_state {
                 AnimationType::Idle => {
-                    self.state = Rc::clone(&self.animation_bank.idle_anim);
+                    self.state = Rc::clone(&self.animations.idle_anim);
                 }
                 AnimationType::Crouch => {
-                    self.state = Rc::clone(&self.animation_bank.crouch_anim);
+                    self.state = Rc::clone(&self.animations.crouch_anim);
                     self.state.borrow_mut().actively_playing = true;
                 }
                 AnimationType::ForwardRun => {
-                    self.state = Rc::clone(&self.animation_bank.fwd_run_anim);
+                    self.state = Rc::clone(&self.animations.fwd_run_anim);
                 }
                 AnimationType::ReverseRun => {
-                    self.state = Rc::clone(&self.animation_bank.rev_run_anim);
+                    self.state = Rc::clone(&self.animations.rev_run_anim);
                 }
                 AnimationType::ForwardWalk => {
-                    self.state = Rc::clone(&self.animation_bank.fwd_walk_anim);
+                    self.state = Rc::clone(&self.animations.fwd_walk_anim);
                 }
                 AnimationType::ReverseWalk => {
-                    self.state = Rc::clone(&self.animation_bank.rev_walk_anim);
+                    self.state = Rc::clone(&self.animations.rev_walk_anim);
                 }
                 AnimationType::Jump => {
-                    self.state = Rc::clone(&self.animation_bank.jump_anim);
+                    self.state = Rc::clone(&self.animations.jump_anim);
                     self.state.borrow_mut().actively_playing = true;
                 }
                 AnimationType::JumpMoving => {
-                    self.state = Rc::clone(&self.animation_bank.jump_anim_moving);
+                    self.state = Rc::clone(&self.animations.jump_anim_moving);
                     self.state.borrow_mut().actively_playing = true;
                 }
                 AnimationType::Landing => {
-                    self.state = Rc::clone(&self.animation_bank.landing_anim);
+                    self.state = Rc::clone(&self.animations.landing_anim);
                     self.state.borrow_mut().actively_playing = true;
                 }
                 AnimationType::Attack1 => {
-                    self.state = Rc::clone(&self.animation_bank.attack_1_anim);
+                    self.state = Rc::clone(&self.animations.attack_1_anim);
                     self.state.borrow_mut().actively_playing = true;
                 }
                 AnimationType::Attack2 => {
-                    self.state = Rc::clone(&self.animation_bank.attack_2_anim);
+                    self.state = Rc::clone(&self.animations.attack_2_anim);
                     self.state.borrow_mut().actively_playing = true;
                 }
                 AnimationType::Attack3 => {
-                    self.state = Rc::clone(&self.animation_bank.attack_3_anim);
+                    self.state = Rc::clone(&self.animations.attack_3_anim);
                     self.state.borrow_mut().actively_playing = true;
                 }
                 AnimationType::SoaringKick => {
-                    self.state = Rc::clone(&self.animation_bank.soaring_kick_anim);
+                    self.state = Rc::clone(&self.animations.soaring_kick_anim);
                     self.state.borrow_mut().actively_playing = true;
                 }
             }
@@ -334,7 +334,7 @@ impl Character1 {
     }
 }
 
-pub struct Character1AnimationBank {
+pub struct Character1Animations {
     pub idle_anim: Rc<RefCell<PlayerAnimationState>>,
     pub crouch_anim: Rc<RefCell<PlayerAnimationState>>,
     pub fwd_run_anim: Rc<RefCell<PlayerAnimationState>>,
@@ -350,7 +350,7 @@ pub struct Character1AnimationBank {
     pub soaring_kick_anim: Rc<RefCell<PlayerAnimationState>>,
 }
 
-impl Character1AnimationBank {
+impl Character1Animations {
     pub async fn load() -> Self {
         let idle_anim = Rc::new(RefCell::new(PlayerAnimationState {
             anim_type: AnimationType::Idle,

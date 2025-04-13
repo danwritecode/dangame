@@ -27,6 +27,7 @@ pub struct MenuState {
     pub character_selection: Option<CharacterSelection>,
     pub map_selection: Option<usize>,
     pub connect_pressed: bool,
+    pub server_address: String,
 }
 
 impl MenuState {
@@ -36,6 +37,7 @@ impl MenuState {
             character_selection: None,
             map_selection: None,
             connect_pressed: false,
+            server_address: "44.220.137.149:5000".to_string(),
         }
     }
     
@@ -105,19 +107,21 @@ pub async fn draw_menu(background: &Texture2D, maps: &Vec<GameMap>, menu_state: 
     }
     // Multiplayer Connect Button (if in multiplayer mode)
     else if matches!(menu_state.game_mode, Some(GameMode::Multiplayer)) && !menu_state.connect_pressed {
-        widgets::Window::new(hash!(), vec2(500., 600.), vec2(310., 160.))
+        widgets::Window::new(hash!(), vec2(500., 600.), vec2(310., 220.))
             .label("Connect")
             .titlebar(true)
             .ui(&mut *root_ui(), |ui| {
-                Group::new(hash!("connect"), Vec2::new(300., 100.)).ui(ui, |ui| {
-                    ui.label(Vec2::new(10., 10.), "Ready to connect:");
+                Group::new(hash!("connect"), Vec2::new(300., 160.)).ui(ui, |ui| {
+                    ui.input_text(hash!(), "Server address", &mut menu_state.server_address);
                     
-                    if ui.button(Vec2::new(40., 40.), "Connect") {
+                    ui.label(Vec2::new(10., 50.), "Ready to connect:");
+                    
+                    if ui.button(Vec2::new(40., 80.), "Connect") {
                         menu_state.connect_pressed = true;
                     }
                     
                     // Back button
-                    if ui.button(Vec2::new(40., 80.), "Back") {
+                    if ui.button(Vec2::new(40., 120.), "Back") {
                         menu_state.back();
                     }
                 });

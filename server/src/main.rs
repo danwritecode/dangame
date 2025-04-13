@@ -1,11 +1,11 @@
 use std::{
-    collections::{HashMap, HashSet}, net::{SocketAddr, UdpSocket}, thread, time::{Duration, Instant, SystemTime}
+    collections::{HashMap, HashSet}, net::{SocketAddr, UdpSocket}, time::{Instant, SystemTime}
 };
 
-use common::types::{ClientEventType, UserNameText, ClientServerEvent};
+use common::types::{ClientEventType, ServerClient};
 use renet::{ClientId, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent};
 use renet_netcode::{
-    NetcodeServerTransport, ServerAuthentication, ServerConfig, NETCODE_USER_DATA_BYTES,
+    NetcodeServerTransport, ServerAuthentication, ServerConfig,
 };
 
 
@@ -39,9 +39,8 @@ fn server(public_addr: SocketAddr) {
     let socket: UdpSocket = UdpSocket::bind(public_addr).unwrap();
 
     let mut transport = NetcodeServerTransport::new(server_config, socket).unwrap();
-
-    let mut client_states: HashMap<UserNameText, ClientServerEvent> = HashMap::new();
-    let mut client_mapping: HashMap<ClientId, UserNameText> = HashMap::new();
+    let mut client_states: HashMap<ClientId, ServerClient> = HashMap::new();
+    let mut client_states_requiring_update: HashSet<ClientId> = HashSet::new();
 
     let mut last_updated = Instant::now();
 
@@ -56,19 +55,11 @@ fn server(public_addr: SocketAddr) {
         while let Some(event) = server.get_event() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
-                    let user_data = transport.user_data(client_id).unwrap();
-                    let username = Username::from_user_data(&user_data);
-                    client_mapping.insert(client_id, username.0.clone());
-
-                    println!("Client {} connected. Username: {}", client_id, username.0);
+                    println!("Client {} connected", client_id);
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
-                    let username = client_mapping.remove(&client_id);
-
-                    if let Some(username) = username {
-                        client_states.remove(&username);
-                        println!("Client {} | username {} disconnected: {}", client_id, username, reason);
-                    }
+                    client_states.remove(&client_id);
+                    println!("Client {} disconnected: {}", client_id, reason);
                 }
             }
         }
@@ -76,36 +67,65 @@ fn server(public_addr: SocketAddr) {
         // this is where we get client updates
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, DefaultChannel::ReliableOrdered) {
-                let (decoded, _len): (ClientServerEvent, usize) = bincode::decode_from_slice(&message[..], config).unwrap();
-                let username = decoded.username.clone();
+                let (decoded, _len): (ServerClient, usize) = bincode::decode_from_slice(&message[..], config).unwrap();
+
+                let should_update = determine_if_client_should_be_updated(client_id, &decoded, &client_states);
+
+                if should_update {
+                    client_states_requiring_update.insert(client_id);
+                }
 
                 // insert or update client states
-                client_states.entry(username)
+                client_states.entry(client_id)
                     .and_modify(|v| *v = decoded.clone())
-                    .or_insert(decoded);
+                    .or_insert(decoded.clone());
             }
         }
 
         // for each iteration of the loop, we send the client_states to all clients
-        let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states.clone());
+        let client_states_to_send = client_states
+            .iter()
+            .filter(|(client_id, _client_state)| client_states_requiring_update.contains(&client_id))
+            .map(|(client_id, client_state)| (*client_id, client_state.clone()))
+            .collect::<HashMap<ClientId, ServerClient>>();
+
+        let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states_to_send);
         let encoded_client_mapping_event = bincode::encode_to_vec(&client_mapping_event, config).unwrap();
         server.broadcast_message(DefaultChannel::ReliableOrdered, encoded_client_mapping_event);
+        client_states_requiring_update.clear();
 
         transport.send_packets(&mut server);
     }
 }
 
+fn determine_if_client_should_be_updated(
+    client_id: ClientId,
+    new_state: &ServerClient,
+    client_states: &HashMap<ClientId, ServerClient>,
+) -> bool {
+    let current_state = match client_states.get(&client_id) {
+        Some(state) => state,
+        None => {
+            println!("Client {} did not have a state yet", client_id);
+            return true;
+        }
+    };
 
-struct Username(String);
-
-impl Username {
-    fn from_user_data(user_data: &[u8; NETCODE_USER_DATA_BYTES]) -> Self {
-        let mut buffer = [0u8; 8];
-        buffer.copy_from_slice(&user_data[0..8]);
-        let mut len = u64::from_le_bytes(buffer) as usize;
-        len = len.min(NETCODE_USER_DATA_BYTES - 8);
-        let data = user_data[8..len + 8].to_vec();
-        let username = String::from_utf8(data).unwrap();
-        Self(username)
+    if current_state.x_pos != new_state.x_pos {
+        return true;
     }
+
+    if current_state.y_pos != new_state.y_pos {
+        return true;
+    }
+
+    if current_state.anim_type != new_state.anim_type {
+        return true;
+    }
+
+    if current_state.sprite_frame != new_state.sprite_frame {
+        return true;
+    }
+
+    false
 }

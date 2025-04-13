@@ -1,8 +1,6 @@
-[] Remove animation bank
+[] Refactor netcode into struct
 [] Refactor netcode to use separate thread
-
-
-[] build generic map system
+[] dynamic map system
 
 
 [] add various game play states and create a system to go between them (home menu, gameplay, etc)
@@ -31,3 +29,4 @@
 [x] add second player
 [x] Netcode
 [x] Second remote player
+[x] add input for IP address

@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use crate::animation::{AnimationType, CharacterType, Facing};
 use bincode::{Decode, Encode};
 
-pub type UserNameText = String;
-
 /// This is what gets sent to the server AND the client.
 ///
 /// When clients connect to the server, they send a ClientEventNewClient.
@@ -16,14 +14,11 @@ pub type UserNameText = String;
 /// The server then sends ClientServerEvent to all clients.
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub enum ClientEventType {
-    ClientCharacterUpdate(HashMap<UserNameText, ClientServerEvent>),
+    ClientCharacterUpdate(HashMap<u64, ServerClient>),
 }
 
 #[derive(Encode, Decode, PartialEq, Debug, Clone)]
-pub struct ClientServerEvent {
-    /// We give this to the server
-    pub username: String,
-
+pub struct ServerClient {
     pub x_pos: f32,
     pub y_pos: f32,
     pub facing: Facing,
