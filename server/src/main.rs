@@ -2,8 +2,8 @@ use std::{
     collections::{HashMap, HashSet}, net::{SocketAddr, UdpSocket}, thread, time::{Duration, Instant, SystemTime}
 };
 
-use common::types::{ClientEventType, ClientId, UserNameText, ClientServerEvent};
-use renet::{ConnectionConfig, DefaultChannel, RenetServer, ServerEvent};
+use common::types::{ClientEventType, UserNameText, ClientServerEvent};
+use renet::{ClientId, ConnectionConfig, DefaultChannel, RenetServer, ServerEvent};
 use renet_netcode::{
     NetcodeServerTransport, ServerAuthentication, ServerConfig, NETCODE_USER_DATA_BYTES,
 };
@@ -40,9 +40,8 @@ fn server(public_addr: SocketAddr) {
 
     let mut transport = NetcodeServerTransport::new(server_config, socket).unwrap();
 
-    let mut clients: HashSet<ClientId> = HashSet::new();
-    let mut client_states: HashMap<ClientId, ClientServerEvent> = HashMap::new();
-    let mut client_mapping: HashMap<UserNameText, ClientId> = HashMap::new();
+    let mut client_states: HashMap<UserNameText, ClientServerEvent> = HashMap::new();
+    let mut client_mapping: HashMap<ClientId, UserNameText> = HashMap::new();
 
     let mut last_updated = Instant::now();
 
@@ -57,25 +56,19 @@ fn server(public_addr: SocketAddr) {
         while let Some(event) = server.get_event() {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
-                    clients.insert(client_id);
-
                     let user_data = transport.user_data(client_id).unwrap();
                     let username = Username::from_user_data(&user_data);
-                    client_mapping.insert(username.0.clone(), client_id);
-
-                    let client_mapping_event = ClientEventType::NewClient(client_mapping.clone());
-                    let encoded_client_mapping_event = bincode::encode_to_vec(&client_mapping_event, config).unwrap();
-
-                    server.broadcast_message_except(
-                        client_id, 
-                        DefaultChannel::ReliableOrdered, 
-                        encoded_client_mapping_event
-                    );
+                    client_mapping.insert(client_id, username.0.clone());
 
                     println!("Client {} connected. Username: {}", client_id, username.0);
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
-                    println!("Client {} disconnected: {}", client_id, reason);
+                    let username = client_mapping.remove(&client_id);
+
+                    if let Some(username) = username {
+                        client_states.remove(&username);
+                        println!("Client {} | username {} disconnected: {}", client_id, username, reason);
+                    }
                 }
             }
         }
@@ -84,10 +77,10 @@ fn server(public_addr: SocketAddr) {
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, DefaultChannel::ReliableOrdered) {
                 let (decoded, _len): (ClientServerEvent, usize) = bincode::decode_from_slice(&message[..], config).unwrap();
-                let client_id = decoded.client_id;
+                let username = decoded.username.clone();
 
                 // insert or update client states
-                client_states.entry(client_id)
+                client_states.entry(username)
                     .and_modify(|v| *v = decoded.clone())
                     .or_insert(decoded);
             }
@@ -99,7 +92,6 @@ fn server(public_addr: SocketAddr) {
         server.broadcast_message(DefaultChannel::ReliableOrdered, encoded_client_mapping_event);
 
         transport.send_packets(&mut server);
-        thread::sleep(Duration::from_millis(50));
     }
 }
 

@@ -7,7 +7,7 @@ use macroquad_platformer::{Actor, World};
 use std::{cell::RefCell, rc::Rc};
 
 use crate::constants::*;
-use common::{animation_deltas::UpdateDeltas, types::ClientState};
+use common::animation_deltas::UpdateDeltas;
 
 use common::animation::{
         AnimationSequence, AnimationType, CharacterTextures, CharacterType, PlayerAnimationState, Facing
@@ -28,6 +28,24 @@ impl CharacterTrait for Character2 {
     fn update(&mut self, dt: f32) {
         self.update_physics(dt);
         self.update_animation();
+    }
+
+    fn get_anim_type(&self) -> AnimationType {
+        self.state.borrow().anim_type.clone()
+    }
+
+    fn get_character_type(&self) -> CharacterType {
+        self.state.borrow().character_type.clone()
+    }
+
+    fn get_position(&self) -> Vec2 {
+        let player_pos = self.world.borrow_mut().actor_pos(self.actor);
+        Vec2::new(player_pos.x, player_pos.y)
+    }
+
+    fn get_size(&self) -> (i32, i32) {
+        let player_size = self.world.borrow_mut().actor_size(self.actor);
+        (player_size.0, player_size.1)
     }
 
     fn get_actor(&self) -> Actor {
@@ -52,19 +70,6 @@ impl CharacterTrait for Character2 {
 
     fn get_velocity(&self) -> Vec2 {
         Vec2::new(self.x_v, self.y_v)
-    }
-
-    fn get_client_state(&self) -> ClientState {
-        ClientState::new(
-            self.x_v,
-            self.y_v,
-            self.facing.clone(),
-            self.state.borrow().anim_type.clone(),
-            self.state.borrow().character_type.clone(),
-            self.state.borrow().sprite_frame,
-            self.state.borrow().sequence_index,
-            self.state.borrow().sequence_frame_index,
-        )
     }
 }
 

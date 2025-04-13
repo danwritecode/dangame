@@ -1,7 +1,7 @@
-use std::{cell::RefCell, rc::Rc, vec};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, vec};
 
-use characters::{character::CharacterTrait, character_1::Character1, character_2::Character2};
-use common::animation::{CharacterTextures, Facing};
+use characters::{character::CharacterTrait, character_1::Character1, character_2::Character2, server_character::ServerCharacter};
+use common::{animation::{CharacterTextures, Facing}, types::{ClientEventType, ClientServerEvent, UserNameText}};
 
 use macroquad::prelude::*;
 use macroquad_tiled::{self as tiled, Map};
@@ -18,7 +18,7 @@ use std::{
 
 use renet::{ConnectionConfig, DefaultChannel, RenetClient};
 use renet_netcode::{
-    ClientAuthentication, NetcodeClientTransport
+    ClientAuthentication, NetcodeClientTransport, NETCODE_USER_DATA_BYTES
 };
 
 
@@ -38,16 +38,20 @@ enum GameState<'a> {
     Game(&'a GameMap),
 }
 
+const USE_HITBOXES: bool = true;
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let use_hitboxes = true;
+    // CLIENT STUFF
+    let config = bincode::config::standard();
+    let mut client: Option<RenetClient> = None;
+    let mut transport: Option<NetcodeClientTransport> = None;
+    let mut last_updated: Option<Instant> = None;
+    let username = format!("{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
 
-    // let server_addr: SocketAddr = "34.234.74.134:5000".parse().unwrap();
-    // client(server_addr);
 
+    // TEXTURES AND WORLD BUILDING
     let character_textures = Rc::new(CharacterTextures::load_all().await);
-
     let splash_background = load_texture("assets/spritesheets/splash.png").await.unwrap();
     let tiled_map = load_map().await;
     let static_colliders = load_static_colliders(&tiled_map).await;
@@ -55,8 +59,13 @@ async fn main() {
     let world = Rc::new(RefCell::new(World::new()));
     world.borrow_mut().add_static_tiled_layer(static_colliders, 32., 32., 40, 1);
 
-    // Start with an empty characters vector
-    let mut characters: Box<Vec<Box<dyn CharacterTrait>>> = Box::new(vec![]);
+    // Default my character to be Character1
+    // it'll be overwritten once character is selected
+    let mut my_character: Box<dyn CharacterTrait> = 
+        Box::new(Character1::new(300.0, 50.0, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(&world)).await);
+
+    // only used in multiplayer
+    let mut other_characters: HashMap<UserNameText, ServerCharacter> = HashMap::new();
 
     let maps = get_maps().await;
     let mut game_state = GameState::Menu;
@@ -81,23 +90,47 @@ async fn main() {
                 if let Some(map_index) = menu_state.map_selection {
                     if let Some(map) = maps.get(map_index) {
                         if let Some(character) = &menu_state.character_selection {
-                            add_character(character, &mut characters, &world, 300.0, 50.0).await;
+                            add_my_character(character, &mut my_character, &world, 300.0, 50.0).await;
                         }
                         
                         is_multiplayer = menu_state.connect_pressed;
+
+                        // connect to server and set up client variables
+                        if is_multiplayer {
+                            let server_connection_response = connect_to_server(&username).await;
+                            client = Some(server_connection_response.client);
+                            transport = Some(server_connection_response.transport);
+                            last_updated = Some(server_connection_response.last_updated);
+                        }
+
                         game_state = GameState::Game(map);
                     }
                 }
             }
             GameState::Game(map) => {
                 map.draw_map();
-                for character in characters.iter_mut() {
-                    render_character(character.as_mut(), dt, &world, &character_textures, use_hitboxes);
+
+                // draw the other characters
+                for (k, character) in other_characters.iter_mut() {
+                    // render_character(character.as_mut(), &world, &character_textures, use_hitboxes);
                 }
+
+                // draw AND update my character
+                render_update_my_character(my_character.as_mut(), dt, &world, &character_textures);
                 
                 // Display multiplayer indicator if we're in multiplayer mode
                 if is_multiplayer {
-                    draw_text("Multiplayer Mode", 20.0, 20.0, 20.0, GREEN);
+                    // check if we have ALL the variables needed
+                    match (
+                        client.as_mut(),
+                        transport.as_mut(),
+                        last_updated.as_mut(),
+                    ) {
+                        (Some(client), Some(transport), Some(last_updated)) => {
+                            handle_client_updates(client, config, transport, last_updated, &username);
+                        }
+                        _ => (),
+                    }
                 }
             }
         }
@@ -107,26 +140,22 @@ async fn main() {
 }
 
 
-/// Add a character to the characters vector based on the provided selection
-async fn add_character(
-    character_selection: &CharacterSelection,
-    characters: &mut Vec<Box<dyn CharacterTrait>>,
-    world: &Rc<RefCell<World>>,
-    x_pos: f32,
-    y_pos: f32,
+async fn add_my_character(
+    character_selection: &CharacterSelection, 
+    my_character: &mut Box<dyn CharacterTrait>, 
+    world: &Rc<RefCell<World>>, 
+    x_pos: f32, 
+    y_pos: f32
 ) {
     match character_selection {
         CharacterSelection::Character1 => {
-            let character = Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await;
-            characters.push(Box::new(character));
+            *my_character = Box::new(Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
         },
         CharacterSelection::Character2 => {
-            let character = Character2::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await;
-            characters.push(Box::new(character));
+            *my_character = Box::new(Character2::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
         },
         CharacterSelection::Character3 => {
-            let character = Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await;
-            characters.push(Box::new(character));
+            *my_character = Box::new(Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
         },
     }
 }
@@ -145,12 +174,11 @@ async fn get_maps() -> Vec<GameMap> {
     ]
 }
 
-fn render_character(
+fn render_update_my_character(
     character: &mut dyn CharacterTrait, 
     dt: f32, 
     world: &Rc<RefCell<World>>, 
     textures: &Rc<CharacterTextures>,
-    use_hitboxes: bool
 ) {
     character.update(dt);
     let texture = character.get_texture(textures);
@@ -158,7 +186,7 @@ fn render_character(
     let facing = character.get_facing();
     let sprite_frame = character.get_sprite_frame();
 
-    draw_player(&texture, &Rc::clone(&world), actor, facing, sprite_frame, use_hitboxes);
+    draw_player(&texture, &Rc::clone(&world), actor, facing, sprite_frame, USE_HITBOXES);
 }
 
 fn draw_player(
@@ -231,11 +259,91 @@ fn window_conf() -> Conf {
     }
 }
 
-fn client(server_addr: SocketAddr) {
+async fn handle_client_updates(
+    client: &mut RenetClient,
+    bincode_config: bincode::config::Configuration,
+    transport: &mut NetcodeClientTransport,
+    last_updated: &mut Instant,
+    client_username: &str,
+    characters: &mut HashMap<UserNameText, ServerCharacter>,
+    world: &Rc<RefCell<World>>,
+    textures: &Rc<CharacterTextures>,
+) {
+    let now = Instant::now();
+    let duration = now - *last_updated;
+    *last_updated = now;
+
+    client.update(duration);
+    transport.update(duration, client).unwrap();
+
+    if client.is_connected() {
+
+        // this is where we send the updated client info
+        // let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states.clone());
+        // let encoded_client_mapping_event = bincode::encode_to_vec(&client_mapping_event, config).unwrap();
+        // client.send_message(DefaultChannel::ReliableOrdered, text.as_bytes().to_vec());
+
+
+        while let Some(message) = client.receive_message(DefaultChannel::ReliableOrdered) {
+            let (client_event_type, _len): (ClientEventType, usize) = bincode::decode_from_slice(&message[..], bincode_config).unwrap();
+
+            match client_event_type {
+                ClientEventType::ClientCharacterUpdate(message) => {
+                    println!("Client Character Update");
+                    // let character = Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await;
+
+                    for (username, client_server_event) in message { 
+                        if username == client_username { continue; } // skip our own character
+
+                        let x_pos = client_server_event.x_pos;
+                        let y_pos = client_server_event.y_pos;
+
+                        // update character or insert it
+                        let character = characters.entry(username)
+                            .and_modify(|v| {
+                                v.x_v = x_pos;
+                                v.y_v = y_pos;
+                                v.anim_type = client_server_event.anim_type.clone();
+                                v.character_type = client_server_event.character_type.clone();
+                                v.sprite_frame = client_server_event.sprite_frame;
+                            })
+                            .or_insert(ServerCharacter::new(
+                                x_pos, y_pos, 
+                                DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, 
+                                client_server_event.anim_type.clone(), 
+                                client_server_event.character_type.clone(), 
+                                client_server_event.sprite_frame, 
+                                Rc::clone(&world)
+                            ).await);
+
+                        let texture = character.get_texture(textures);
+                        let actor = character.get_actor();
+                        let facing = character.get_facing();
+                        let sprite_frame = character.get_sprite_frame();
+
+                        draw_player(&texture, &Rc::clone(&world), actor, facing, sprite_frame, USE_HITBOXES);
+                    }
+                }
+            }
+
+        }
+    }
+
+    transport.send_packets(client).unwrap();
+}
+
+struct ServerConnectionResponse {
+    client: RenetClient,
+    transport: NetcodeClientTransport,
+    last_updated: Instant,
+}
+
+async fn connect_to_server(username: &str) -> ServerConnectionResponse {
     const PROTOCOL_ID: u64 = 7;
+    let server_addr: SocketAddr = "34.234.74.134:5000".parse().unwrap();
 
     let connection_config = ConnectionConfig::default();
-    let mut client = RenetClient::new(connection_config);
+    let client = RenetClient::new(connection_config);
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
 
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
@@ -244,46 +352,27 @@ fn client(server_addr: SocketAddr) {
     let authentication = ClientAuthentication::Unsecure {
         server_addr,
         client_id,
-        user_data: None,
+        user_data: Some(to_netcode_user_data(username)),
         protocol_id: PROTOCOL_ID,
     };
 
-    let mut transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
-    let stdin_channel: Receiver<String> = spawn_stdin_channel();
+    let transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
+    let last_updated = Instant::now();
 
-    let mut last_updated = Instant::now();
-    loop {
-        let now = Instant::now();
-        let duration = now - last_updated;
-        last_updated = now;
-
-        client.update(duration);
-        transport.update(duration, &mut client).unwrap();
-
-        if client.is_connected() {
-            match stdin_channel.try_recv() {
-                Ok(text) => client.send_message(DefaultChannel::ReliableOrdered, text.as_bytes().to_vec()),
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => panic!("Channel disconnected"),
-            }
-
-            while let Some(text) = client.receive_message(DefaultChannel::ReliableOrdered) {
-                let text = String::from_utf8(text.into()).unwrap();
-                println!("{}", text);
-            }
-        }
-
-        transport.send_packets(&mut client).unwrap();
-        thread::sleep(Duration::from_millis(50));
+    ServerConnectionResponse {
+        client,
+        transport,
+        last_updated,
     }
 }
 
-fn spawn_stdin_channel() -> Receiver<String> {
-    let (tx, rx) = mpsc::channel::<String>();
-    thread::spawn(move || loop {
-        let mut buffer = String::new();
-        std::io::stdin().read_line(&mut buffer).unwrap();
-        tx.send(buffer.trim_end().to_string()).unwrap();
-    });
-    rx
+fn to_netcode_user_data(username: &str) -> [u8; NETCODE_USER_DATA_BYTES] {
+    let mut user_data = [0u8; NETCODE_USER_DATA_BYTES];
+    if username.len() > NETCODE_USER_DATA_BYTES - 8 {
+        panic!("Username is too big");
+    }
+    user_data[0..8].copy_from_slice(&(username.len() as u64).to_le_bytes());
+    user_data[8..username.len() + 8].copy_from_slice(username.as_bytes());
+
+    user_data
 }

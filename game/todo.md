@@ -1,7 +1,11 @@
-[] build generic map system
-
+[] Remove animation bank
 [] Netcode
 [] Second remote player
+
+
+
+[] build generic map system
+
 
 [] add various game play states and create a system to go between them (home menu, gameplay, etc)
 [] game debug window/ui to help with various state changes
