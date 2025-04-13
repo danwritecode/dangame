@@ -37,7 +37,7 @@ enum GameState<'a> {
 }
 
 const USE_HITBOXES: bool = false;
-const UDP_SERVER_ADDR: &str = "44.223.0.79:5000";
+const UDP_SERVER_ADDR: &str = "44.220.137.149:5000";
 // const UDP_SERVER_ADDR: &str = "127.0.0.1:5000";
 
 #[macroquad::main(window_conf)]
