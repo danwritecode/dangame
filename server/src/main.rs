@@ -50,7 +50,13 @@ fn server(public_addr: SocketAddr) {
         last_updated = now;
 
         server.update(duration);
-        transport.update(duration, &mut server).unwrap();
+        match transport.update(duration, &mut server) {
+            Ok(_) => {},
+            Err(e) => {
+                println!("Error updating transport: {:?}", e);
+                continue;
+            }
+        };
 
         while let Some(event) = server.get_event() {
             match event {
@@ -67,7 +73,13 @@ fn server(public_addr: SocketAddr) {
         // this is where we get client updates
         for client_id in server.clients_id() {
             while let Some(message) = server.receive_message(client_id, DefaultChannel::ReliableOrdered) {
-                let (decoded, _len): (ServerClient, usize) = bincode::decode_from_slice(&message[..], config).unwrap();
+                let (decoded, _len): (ServerClient, usize) = match bincode::decode_from_slice(&message[..], config) {
+                    Ok(decoded) => decoded,
+                    Err(e) => {
+                        println!("Error decoding message: {:?}", e);
+                        continue;
+                    }
+                };
 
                 let should_update = determine_if_client_should_be_updated(client_id, &decoded, &client_states);
 
@@ -90,7 +102,14 @@ fn server(public_addr: SocketAddr) {
             .collect::<HashMap<ClientId, ServerClient>>();
 
         let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states_to_send);
-        let encoded_client_mapping_event = bincode::encode_to_vec(&client_mapping_event, config).unwrap();
+        let encoded_client_mapping_event = match bincode::encode_to_vec(&client_mapping_event, config) {
+            Ok(encoded_client_mapping_event) => encoded_client_mapping_event,
+            Err(e) => {
+                println!("Error encoding client mapping event: {:?}", e);
+                continue;
+            }
+        };
+
         server.broadcast_message(DefaultChannel::ReliableOrdered, encoded_client_mapping_event);
         client_states_requiring_update.clear();
 
