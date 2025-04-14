@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc, vec};
 
-use characters::{character::CharacterTrait, character_1::Character1, character_2::Character2, server_character::ServerCharacter};
+use characters::{character::CharacterTrait, character_1::Character1, character_2::Character2, character_3::Character3, server_character::ServerCharacter};
 use common::{animation::{CharacterTextures, Facing}, types::ServerClient};
 
 use macroquad::prelude::*;
@@ -126,7 +126,7 @@ async fn add_my_character(
             *my_character = Box::new(Character2::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
         },
         CharacterSelection::Character3 => {
-            *my_character = Box::new(Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
+            *my_character = Box::new(Character3::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
         },
     }
 }

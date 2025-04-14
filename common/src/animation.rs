@@ -33,6 +33,7 @@ pub enum AnimationType {
 pub enum CharacterType {
     Fighter,
     Shinobi,
+    Samurai
 }
 
 pub struct PlayerAnimationState {
@@ -188,10 +189,23 @@ pub struct ShinobiTextures {
     pub attack3: Rc<Texture2D>,
 }
 
+pub struct SamuraiTextures {
+    pub idle: Rc<Texture2D>,
+    pub crouch: Rc<Texture2D>,
+    pub run: Rc<Texture2D>,
+    pub jump: Rc<Texture2D>,
+    pub walk: Rc<Texture2D>,
+    pub landing: Rc<Texture2D>,
+    pub attack1: Rc<Texture2D>,
+    pub attack2: Rc<Texture2D>,
+    pub attack3: Rc<Texture2D>,
+}
+
 // Container for all character textures
 pub struct CharacterTextures {
     pub fighter: FighterTextures,
     pub shinobi: ShinobiTextures,
+    pub samurai: SamuraiTextures,
 }
 
 impl FighterTextures {
@@ -254,11 +268,42 @@ impl ShinobiTextures {
     }
 }
 
+impl SamuraiTextures {
+    pub async fn load() -> Self {
+        Self {
+            idle: Rc::new(load_texture("assets/spritesheets/Samurai/Idle.png").await.unwrap()),
+            crouch: Rc::new(load_texture("assets/spritesheets/Samurai/Idle.png").await.unwrap()),
+            run: Rc::new(load_texture("assets/spritesheets/Samurai/Run.png").await.unwrap()),
+            jump: Rc::new(load_texture("assets/spritesheets/Samurai/Jump.png").await.unwrap()),
+            walk: Rc::new(load_texture("assets/spritesheets/Samurai/Walk.png").await.unwrap()),
+            landing: Rc::new(load_texture("assets/spritesheets/Samurai/Idle.png").await.unwrap()),
+            attack1: Rc::new(load_texture("assets/spritesheets/Samurai/Attack_1.png").await.unwrap()),
+            attack2: Rc::new(load_texture("assets/spritesheets/Samurai/Attack_2.png").await.unwrap()),
+            attack3: Rc::new(load_texture("assets/spritesheets/Samurai/Attack_3.png").await.unwrap()),
+        }
+    }
+
+    pub fn get_texture(&self, animation: &AnimationType) -> Rc<Texture2D> {
+        match animation {
+            AnimationType::Idle => self.idle.clone(),
+            AnimationType::Crouch => self.crouch.clone(),
+            AnimationType::ForwardRun | AnimationType::ReverseRun => self.run.clone(),
+            AnimationType::Jump | AnimationType::JumpMoving => self.jump.clone(),
+            AnimationType::Landing => self.landing.clone(),
+            AnimationType::ForwardWalk | AnimationType::ReverseWalk => self.walk.clone(),
+            AnimationType::Attack1 => self.attack1.clone(),
+            AnimationType::Attack2 => self.attack2.clone(),
+            AnimationType::Attack3 | AnimationType::SoaringKick => self.attack3.clone(),
+        }
+    }
+}
+
 impl CharacterTextures {
     pub async fn load_all() -> Self {
         let fighter = FighterTextures::load().await;
         let shinobi = ShinobiTextures::load().await;
-        Self { fighter, shinobi }
+        let samurai = SamuraiTextures::load().await;
+        Self { fighter, shinobi, samurai }
     }
 
     pub fn get_texture(
@@ -269,6 +314,7 @@ impl CharacterTextures {
         match character {
             CharacterType::Fighter => self.fighter.get_texture(animation),
             CharacterType::Shinobi => self.shinobi.get_texture(animation),
+            CharacterType::Samurai => self.samurai.get_texture(animation),
         }
     }
 }
