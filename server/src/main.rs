@@ -81,11 +81,11 @@ fn server(public_addr: SocketAddr) {
                     }
                 };
 
-                // let should_update = determine_if_client_should_be_updated(client_id, &decoded, &client_states);
-                //
-                // if should_update {
-                //     client_states_requiring_update.insert(client_id);
-                // }
+                let should_update = determine_if_client_should_be_updated(client_id, &decoded, &client_states);
+
+                if should_update {
+                    client_states_requiring_update.insert(client_id);
+                }
 
                 // insert or update client states
                 client_states.entry(client_id)
@@ -95,15 +95,14 @@ fn server(public_addr: SocketAddr) {
         }
 
         // for each iteration of the loop, we send the client_states to all clients
-        // let client_states_to_send = client_states
-        //     .iter()
-        //     .filter(|(client_id, _client_state)| client_states_requiring_update.contains(&client_id))
-        //     .map(|(client_id, client_state)| (*client_id, client_state.clone()))
-        //     .collect::<HashMap<ClientId, ServerClient>>();
+        let client_states_to_send = client_states
+            .iter()
+            .filter(|(client_id, _client_state)| client_states_requiring_update.contains(&client_id))
+            .map(|(client_id, client_state)| (*client_id, client_state.clone()))
+            .collect::<HashMap<ClientId, ServerClient>>();
 
-        // let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states_to_send);
+        let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states_to_send);
 
-        let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states.clone());
         let encoded_client_mapping_event = match bincode::encode_to_vec(&client_mapping_event, config) {
             Ok(encoded_client_mapping_event) => encoded_client_mapping_event,
             Err(e) => {
