@@ -4,7 +4,7 @@ A multiplayer 2D fighting/platformer game built in Rust, for fun, using [macroqu
 
 ## What is this?
 
-This is a hobby project where I’m learning and experimenting with real-time multiplayer game development in Rust. The goal is to have a simple, smooth, and fun 2D game where you can run, jump, and fight with friends over the network. It’s not meant to be a commercial product—just a playground for game dev ideas, networking, and Rust code.
+This is a hobby project where I’m learning and experimenting with real-time multiplayer game development in Rust. The goal is to have a simple, smooth, and fun 2D game where you can run, jump, and fight with friends over the network. It’s not meant to be a commercial product, just a playground for game dev ideas, networking, and Rust code.
 
 ## Features
 
