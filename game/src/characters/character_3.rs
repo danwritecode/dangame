@@ -6,7 +6,7 @@ use macroquad::{
 use macroquad_platformer::{Actor, World};
 use std::{cell::RefCell, rc::Rc};
 
-use crate::constants::*;
+use common::constants::*;
 use common::animation_deltas::UpdateDeltas;
 
 use common::animation::{
@@ -22,12 +22,21 @@ pub struct Character3 {
     state: Rc<RefCell<PlayerAnimationState>>,
     actor: Actor,
     world: Rc<RefCell<World>>,
+    client_id: Option<u64>
 }
 
 impl CharacterTrait for Character3 {
     fn update(&mut self, dt: f32) {
         self.update_physics(dt);
         self.update_animation();
+    }
+
+    fn set_client_id(&mut self) {
+        self.client_id = Some(0);
+    }
+
+    fn get_client_id(&self) -> Option<u64> {
+        self.client_id
     }
 
     fn get_anim_type(&self) -> AnimationType {
@@ -74,7 +83,7 @@ impl CharacterTrait for Character3 {
 }
 
 impl Character3 {
-    pub async fn new(x: f32, y: f32, width: i32, height: i32, world: Rc<RefCell<World>>) -> Self {
+    pub async fn new(x: f32, y: f32, width: i32, height: i32, world: Rc<RefCell<World>>, client_id: Option<u64>) -> Self {
         let animation_bank = Character3Animations::load().await;
         let state = animation_bank.idle_anim.clone();
         let collider = world
@@ -89,6 +98,7 @@ impl Character3 {
             animations: animation_bank,
             actor: collider,
             world,
+            client_id,
         }
     }
 

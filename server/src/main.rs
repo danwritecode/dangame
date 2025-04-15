@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet}, net::{SocketAddr, UdpSocket}, time::{Instant, SystemTime}
+    collections::{HashMap, HashSet}, net::{SocketAddr, UdpSocket}, thread, time::{Duration, Instant, SystemTime}
 };
 
 use common::types::{ClientEventType, ServerClient};
@@ -22,7 +22,6 @@ fn main() {
 const PROTOCOL_ID: u64 = 7;
 
 fn server(public_addr: SocketAddr) {
-    // bincode config
     let config = bincode::config::standard();
 
     let connection_config = ConnectionConfig::default();
@@ -40,8 +39,6 @@ fn server(public_addr: SocketAddr) {
 
     let mut transport = NetcodeServerTransport::new(server_config, socket).unwrap();
     let mut client_states: HashMap<ClientId, ServerClient> = HashMap::new();
-    let mut client_states_requiring_update: HashSet<ClientId> = HashSet::new();
-
     let mut last_updated = Instant::now();
 
     loop {
@@ -62,6 +59,7 @@ fn server(public_addr: SocketAddr) {
             match event {
                 ServerEvent::ClientConnected { client_id } => {
                     println!("Client {} connected", client_id);
+                    client_states.insert(client_id, ServerClient::default());
                 }
                 ServerEvent::ClientDisconnected { client_id, reason } => {
                     client_states.remove(&client_id);
@@ -81,12 +79,6 @@ fn server(public_addr: SocketAddr) {
                     }
                 };
 
-                let should_update = determine_if_client_should_be_updated(client_id, &decoded, &client_states);
-
-                if should_update {
-                    client_states_requiring_update.insert(client_id);
-                }
-
                 // insert or update client states
                 client_states.entry(client_id)
                     .and_modify(|v| *v = decoded.clone())
@@ -94,15 +86,8 @@ fn server(public_addr: SocketAddr) {
             }
         }
 
-        // for each iteration of the loop, we send the client_states to all clients
-        let client_states_to_send = client_states
-            .iter()
-            .filter(|(client_id, _client_state)| client_states_requiring_update.contains(&client_id))
-            .map(|(client_id, client_state)| (*client_id, client_state.clone()))
-            .collect::<HashMap<ClientId, ServerClient>>();
 
-        let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states_to_send);
-
+        let client_mapping_event = ClientEventType::ClientCharacterUpdate(client_states.clone());
         let encoded_client_mapping_event = match bincode::encode_to_vec(&client_mapping_event, config) {
             Ok(encoded_client_mapping_event) => encoded_client_mapping_event,
             Err(e) => {
@@ -112,40 +97,7 @@ fn server(public_addr: SocketAddr) {
         };
 
         server.broadcast_message(DefaultChannel::ReliableOrdered, encoded_client_mapping_event);
-        client_states_requiring_update.clear();
-
         transport.send_packets(&mut server);
+        thread::sleep(Duration::from_millis(16));
     }
-}
-
-fn determine_if_client_should_be_updated(
-    client_id: ClientId,
-    new_state: &ServerClient,
-    client_states: &HashMap<ClientId, ServerClient>,
-) -> bool {
-    let current_state = match client_states.get(&client_id) {
-        Some(state) => state,
-        None => {
-            println!("Client {} did not have a state yet", client_id);
-            return true;
-        }
-    };
-
-    if current_state.x_pos != new_state.x_pos {
-        return true;
-    }
-
-    if current_state.y_pos != new_state.y_pos {
-        return true;
-    }
-
-    if current_state.anim_type != new_state.anim_type {
-        return true;
-    }
-
-    if current_state.sprite_frame != new_state.sprite_frame {
-        return true;
-    }
-
-    false
 }

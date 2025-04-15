@@ -7,15 +7,16 @@ use std::{
 use bincode::config::Configuration;
 use common::types::{ClientEventType, ServerClient};
 use renet::{ConnectionConfig, DefaultChannel, RenetClient};
-use renet_netcode::{ClientAuthentication, NETCODE_USER_DATA_BYTES, NetcodeClientTransport};
+use renet_netcode::{ClientAuthentication, NetcodeClientTransport};
 
-use crate::characters::character::{CharacterTrait, into_client_server_event};
+use crate::characters::character::CharacterTrait;
 
 pub struct ServerConnection {
     bincode_config: Configuration,
     client: RenetClient,
     transport: NetcodeClientTransport,
-    last_updated: Instant,
+    last_renet_updated: Instant,
+    last_server_updated: Instant,
     client_id: u64,
     server_clients: HashMap<u64, ServerClient>,
 }
@@ -42,32 +43,49 @@ impl ServerConnection {
         };
 
         let transport = NetcodeClientTransport::new(current_time, authentication, socket).unwrap();
-        let last_updated = Instant::now();
+        let last_renet_updated = Instant::now();
+        let last_server_updated = Instant::now();
         let bincode_config = bincode::config::standard();
-
-        let server_characters = HashMap::new();
+        let server_clients = HashMap::new();
 
         Self {
             bincode_config,
             client,
             transport,
-            last_updated,
+            last_renet_updated,
+            last_server_updated,
             client_id,
-            server_clients: server_characters,
+            server_clients,
         }
+    }
+
+
+    pub fn get_client_id(&self) -> u64 {
+        self.client_id
+    }
+
+    pub fn get_last_server_updated(&self) -> Instant {
+        self.last_server_updated
     }
 
     pub fn get_server_clients(&self) -> &HashMap<u64, ServerClient> {
         &self.server_clients
     }
 
+
     pub async fn handle_server_updates(&mut self) {
+        let mut got_update = false;
         let now = Instant::now();
-        let duration = now - self.last_updated;
-        self.last_updated = now;
+        let duration = now - self.last_renet_updated;
+        self.last_renet_updated = now;
 
         self.client.update(duration);
-        self.transport.update(duration, &mut self.client).unwrap();
+        match self.transport.update(duration, &mut self.client) {
+            Ok(_) => {},
+            Err(e) => {
+                eprintln!("Error updating transport: {:?}", e);
+            }
+        }
 
         if self.client.is_connected() {
             while let Some(message) = self.client.receive_message(DefaultChannel::ReliableOrdered) {
@@ -76,45 +94,83 @@ impl ServerConnection {
 
                 match client_event_type {
                     ClientEventType::ClientCharacterUpdate(message) => {
-                        for (client_id, client_server_event) in message {
-                            if client_id == self.client_id { continue; }
-
+                        for (client_id, cse) in message {
                             self.server_clients
                                 .entry(client_id)
                                 .and_modify(|v| {
-                                    v.x_pos = client_server_event.x_pos;
-                                    v.y_pos = client_server_event.y_pos;
-                                    v.anim_type = client_server_event.anim_type.clone();
-                                    v.character_type = client_server_event.character_type.clone();
-                                    v.sprite_frame = client_server_event.sprite_frame;
-                                    v.facing = client_server_event.facing.clone();
+                                    v.prev_x_pos = v.x_pos;
+                                    v.prev_y_pos = v.y_pos;
+                                    v.x_pos = cse.x_pos;
+                                    v.y_pos = cse.y_pos;
+                                    v.height = cse.height;
+                                    v.width = cse.width;
+                                    v.anim_type = cse.anim_type.clone();
+                                    v.character_type = cse.character_type.clone();
+                                    v.sprite_frame = cse.sprite_frame;
+                                    v.facing = cse.facing.clone();
                                 })
-                                .or_insert(client_server_event);
+                                .or_insert(cse);
                         }
+                        got_update = true;
                     }
                 }
             }
         }
 
-        self.transport.send_packets(&mut self.client).unwrap();
-    }
-
-    pub async fn handle_client_updates(&mut self, my_character: &Box<dyn CharacterTrait>) {
-        let now = Instant::now();
-        let duration = now - self.last_updated;
-        self.last_updated = now;
-
-        self.client.update(duration);
-        self.transport.update(duration, &mut self.client).unwrap();
-
-        if self.client.is_connected() {
-            let client_server_event = into_client_server_event(my_character).await;
-            let encoded_client_server_event =
-                bincode::encode_to_vec(&client_server_event, self.bincode_config).unwrap();
-
-            self.client.send_message(DefaultChannel::ReliableOrdered, encoded_client_server_event);
+        if got_update {
+            let now = Instant::now();
+            self.last_server_updated = now;
         }
 
-        self.transport.send_packets(&mut self.client).unwrap();
+        match self.transport.send_packets(&mut self.client) {
+            Ok(_) => {},
+            Err(e) => {
+                eprintln!("Error sending packets: {:?}", e);
+            }
+        }
+    }
+
+
+    pub async fn handle_client_updates(&mut self, my_character: &Box<dyn CharacterTrait>) {
+        if self.client.is_connected() {
+            let client_id = my_character.get_client_id().expect("Client ID not set");
+
+            match self.server_clients.get_mut(&client_id) {
+                Some(sc) => {
+                    let size = my_character.get_size();
+                    let pos = my_character.get_position();
+
+                    sc.x_pos = pos.x;
+                    sc.y_pos = pos.y;
+                    sc.height = size.1; // 1 is height
+                    sc.width = size.0; // 0 is width
+                    sc.facing = my_character.get_facing();
+                    sc.anim_type = my_character.get_anim_type();
+                    sc.character_type = my_character.get_character_type();
+                    sc.sprite_frame = my_character.get_sprite_frame();
+                },
+                None => {
+                    eprintln!("Client ID not found in server clients: {:?}", client_id);
+                }
+            }
+
+            match self.server_clients.get(&client_id) {
+                Some(sc) => {
+                    let encoded_client_server_event = bincode::encode_to_vec(sc, self.bincode_config).unwrap();
+                    self.client.send_message(DefaultChannel::ReliableOrdered, encoded_client_server_event);
+                },
+                None => {
+                    eprintln!("Client ID not found in server clients: {:?}", client_id);
+                }
+            }
+
+        }
+
+        match self.transport.send_packets(&mut self.client) {
+            Ok(_) => {},
+            Err(e) => {
+                eprintln!("Error sending packets: {:?}", e);
+            }
+        }
     }
 }

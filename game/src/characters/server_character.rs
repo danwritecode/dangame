@@ -8,6 +8,8 @@ use macroquad_platformer::{Actor, World};
 pub struct ServerCharacter {
     pub x_pos: f32,
     pub y_pos: f32,
+    pub height: i32,
+    pub width: i32,
     pub facing: Facing,
     pub anim_type: AnimationType,
     pub character_type: CharacterType,
@@ -16,12 +18,13 @@ pub struct ServerCharacter {
     pub world: Rc<RefCell<World>>,
 }
 
+/// This is a lightweight version of the Character that the local player uses to render
 impl ServerCharacter {
     pub async fn new(
         x_pos: f32, 
         y_pos: f32, 
-        width: i32, 
         height: i32, 
+        width: i32, 
         facing: Facing,
         anim_type: AnimationType,
         character_type: CharacterType,
@@ -35,6 +38,8 @@ impl ServerCharacter {
         Self {
             x_pos,
             y_pos,
+            height,
+            width,
             facing,
             anim_type,
             character_type,
@@ -47,6 +52,7 @@ impl ServerCharacter {
     pub fn update(&mut self) {
         let pos = vec2(self.x_pos, self.y_pos);
         self.world.borrow_mut().set_actor_position(self.actor, pos);
+        self.world.borrow_mut().set_actor_size(self.actor, self.width, self.height);
     }
 
     pub fn get_texture(&self, textures: &Rc<CharacterTextures>) -> Rc<Texture2D> {
@@ -67,13 +73,5 @@ impl ServerCharacter {
 
     pub fn get_sprite_frame(&self) -> usize {
         self.sprite_frame
-    }
-
-    pub fn get_character_type(&self) -> CharacterType {
-        self.character_type.clone()
-    }
-
-    pub fn get_anim_type(&self) -> AnimationType {
-        self.anim_type.clone()
     }
 }

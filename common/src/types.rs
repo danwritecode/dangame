@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::animation::{AnimationType, CharacterType, Facing};
+use crate::{animation::{AnimationType, CharacterType, Facing}, constants::{DEFAULT_PLAYER_HEIGHT, DEFAULT_PLAYER_WIDTH}};
 use bincode::{Decode, Encode};
 
 /// This is what gets sent to the server AND the client.
@@ -21,6 +21,13 @@ pub enum ClientEventType {
 pub struct ServerClient {
     pub x_pos: f32,
     pub y_pos: f32,
+
+    pub prev_x_pos: f32,
+    pub prev_y_pos: f32,
+
+    pub height: i32,
+    pub width: i32,
+
     pub facing: Facing,
 
     // this determines the texture
@@ -33,4 +40,21 @@ pub struct ServerClient {
 
     /// Frame is the current frame of the spritesheetNOT the animation frame
     pub sprite_frame: usize,
+}
+
+impl Default for ServerClient {
+    fn default() -> Self {
+        Self {
+            x_pos: 0.0,
+            y_pos: 0.0,
+            prev_x_pos: 0.0,
+            prev_y_pos: 0.0,
+            height: DEFAULT_PLAYER_HEIGHT,
+            width: DEFAULT_PLAYER_WIDTH,
+            facing: Facing::Right,
+            anim_type: AnimationType::Idle,
+            character_type: CharacterType::Fighter,
+            sprite_frame: 0,
+        }
+    }
 }

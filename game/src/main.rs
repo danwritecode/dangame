@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, vec};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, time::Instant, vec};
 
 use characters::{character::CharacterTrait, character_1::Character1, character_2::Character2, character_3::Character3, server_character::ServerCharacter};
 use common::{animation::{CharacterTextures, Facing}, types::ServerClient};
@@ -9,17 +9,15 @@ use macroquad_platformer::*;
 use server::ServerConnection;
 
 
-use constants::*;
+use common::constants::*;
 use maps::map::GameMap;
 use ui::main_menu::{MenuState, CharacterSelection};
 
 mod characters;
-mod constants;
 mod maps;
 mod types;
 mod ui;
 mod server;
-
 
 enum GameState<'a> {
     Menu,
@@ -27,6 +25,10 @@ enum GameState<'a> {
 }
 
 const USE_HITBOXES: bool = false;
+// this is how often we send client updates to the server
+const CLIENT_UPDATE_INTERVAL_SECONDS: f32 = 0.01;
+// this is how often the server sends updates to the clients
+const SERVER_UPDATE_FREQUENCY_SECONDS: f32 = 0.016;
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -43,7 +45,7 @@ async fn main() {
 
     // Default my character to be Character1
     let mut my_character: Box<dyn CharacterTrait> = 
-        Box::new(Character1::new(300.0, 50.0, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(&world)).await);
+        Box::new(Character1::new(300.0, 50.0, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(&world), None).await);
 
     // only used in multiplayer
     let mut server_characters: HashMap<u64, ServerCharacter> = HashMap::new();
@@ -52,9 +54,11 @@ async fn main() {
     let mut game_state = GameState::Menu;
     let mut menu_state = MenuState::new();
     let mut is_multiplayer = false;
+    let mut client_server_update_timer = 0.0;
 
     loop {
         let dt = get_frame_time();
+        client_server_update_timer += dt;
 
         match game_state {
             GameState::Menu => {
@@ -71,14 +75,21 @@ async fn main() {
                 if let Some(map_index) = menu_state.map_selection {
                     if let Some(map) = maps.get(map_index) {
                         if let Some(character) = &menu_state.character_selection {
-                            add_my_character(character, &mut my_character, &world, 300.0, 50.0).await;
+
+                            // connect to server and set up client variables
+                            if menu_state.connect_pressed {
+                                server = Some(ServerConnection::new(&menu_state.server_address));
+                                is_multiplayer = true;
+
+                                if let Some(server) = &server {
+                                    let client_id = server.get_client_id();
+                                    add_my_character(character, &mut my_character, &world, 300.0, 50.0, Some(client_id)).await;
+                                }
+                            } else {
+                                add_my_character(character, &mut my_character, &world, 300.0, 50.0, None).await;
+                            }
                         }
 
-                        // connect to server and set up client variables
-                        if menu_state.connect_pressed {
-                            server = Some(ServerConnection::new(&menu_state.server_address));
-                            is_multiplayer = true;
-                        }
 
                         game_state = GameState::Game(map);
                     }
@@ -87,20 +98,37 @@ async fn main() {
             GameState::Game(map) => {
                 map.draw_map();
 
-                // draw AND update my character
+                // draw update MY character
                 render_update_my_character(my_character.as_mut(), dt, &world, &character_textures);
                 
-                // Display multiplayer indicator if we're in multiplayer mode
                 if is_multiplayer {
                     // check if we have ALL the variables needed
                     if let Some(server) = server.as_mut() {
                         server.handle_server_updates().await;
-                        server.handle_client_updates(&my_character).await;
+
+                        // we don't want to send updates every frame
+                        if client_server_update_timer >= CLIENT_UPDATE_INTERVAL_SECONDS {
+                            server.handle_client_updates(&my_character).await;
+
+                            // reset our time
+                            client_server_update_timer = 0.0;
+                        }
 
                         // Now we need to RENDER the server characters
                         let server_clients = server.get_server_clients();
-                        render_update_server_characters(&server_clients, &mut server_characters, &character_textures, &world).await;
+                        
+                        let now = Instant::now();
+                        let duration = now - server.get_last_server_updated();
+                        let t = (duration.as_secs_f32() / SERVER_UPDATE_FREQUENCY_SECONDS).clamp(0.0, 1.0);
 
+                        render_update_server_characters(
+                            server.get_client_id(), 
+                            &server_clients, 
+                            &mut server_characters, 
+                            &character_textures, 
+                            &world, 
+                            t
+                        ).await;
                     }
                 }
             }
@@ -116,17 +144,18 @@ async fn add_my_character(
     my_character: &mut Box<dyn CharacterTrait>, 
     world: &Rc<RefCell<World>>, 
     x_pos: f32, 
-    y_pos: f32
+    y_pos: f32,
+    client_id: Option<u64>
 ) {
     match character_selection {
         CharacterSelection::Character1 => {
-            *my_character = Box::new(Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
+            *my_character = Box::new(Character1::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world), client_id).await);
         },
         CharacterSelection::Character2 => {
-            *my_character = Box::new(Character2::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
+            *my_character = Box::new(Character2::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world), client_id).await);
         },
         CharacterSelection::Character3 => {
-            *my_character = Box::new(Character3::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world)).await);
+            *my_character = Box::new(Character3::new(x_pos, y_pos, DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, Rc::clone(world), client_id).await);
         },
     }
 }
@@ -170,24 +199,36 @@ async fn load_static_colliders(tiled_map: &Map) -> Vec<Tile> {
 }
 
 async fn render_update_server_characters(
+    my_client_id: u64,
     server_clients: &HashMap<u64, ServerClient>,
     server_characters: &mut HashMap<u64, ServerCharacter>,
     textures: &Rc<CharacterTextures>,
     world: &Rc<RefCell<World>>,
+    t: f32,
 ) {
     for (client_id, sc) in server_clients {
+        if *client_id == my_client_id { continue; }
+
+        // we calcualte lerp here
+        let lerp_x_pos = lerp(sc.prev_x_pos, sc.x_pos, t);
+        let lerp_y_pos = lerp(sc.prev_y_pos, sc.y_pos, t);
+
         let character = server_characters.entry(*client_id)
             .and_modify(|v| {
-                v.x_pos = sc.x_pos;
-                v.y_pos = sc.y_pos;
+                v.x_pos = lerp_x_pos;
+                v.y_pos = lerp_y_pos;
+                v.height = sc.height;
+                v.width = sc.width;
                 v.anim_type = sc.anim_type.clone();
                 v.character_type = sc.character_type.clone();
                 v.sprite_frame = sc.sprite_frame;
                 v.facing = sc.facing.clone();
             })
             .or_insert(ServerCharacter::new(
-                sc.x_pos, sc.y_pos, 
-                DEFAULT_PLAYER_WIDTH, DEFAULT_PLAYER_HEIGHT, 
+                lerp_x_pos,
+                lerp_y_pos, 
+                sc.height,
+                sc.width, 
                 sc.facing.clone(),
                 sc.anim_type.clone(), 
                 sc.character_type.clone(), 
@@ -263,4 +304,8 @@ fn window_conf() -> Conf {
         window_resizable: false,
         ..Default::default()
     }
+}
+
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a + (b - a) * t
 }

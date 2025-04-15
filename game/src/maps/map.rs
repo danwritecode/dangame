@@ -3,7 +3,7 @@ use macroquad::{
 };
 
 use macroquad_tiled::{self as tiled, Map};
-use crate::constants::*;
+use common::constants::*;
 
 pub struct GameMap {
     name: String,
