@@ -1,5 +1,3 @@
-[] Refactor netcode into struct
-[] Refactor netcode to use separate thread
 [] dynamic map system
 
 
@@ -30,3 +28,8 @@
 [x] Netcode
 [x] Second remote player
 [x] add input for IP address
+[x] Refactor netcode to use separate thread - not possible
+[x] Refactor netcode into struct
+[x] Add server delay
+[x] Add client delay (we don't need to send updates every frame)
+[x] Add lerp
