@@ -48,3 +48,9 @@ cargo run
 ```
 
 You can run multiple clients to test multiplayer locally, or connect over LAN/internet by changing the server address in the menu.
+
+## Building for Linux (on Mac) (this is for me later)
+```
+cross build --release --target x86_64-unknown-linux-gnu
+```
+
